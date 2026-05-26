@@ -1,5 +1,6 @@
 import express from "express"
 const app = express();
+import {prismaClient } from "store";
 
 app.post('/wesite',(req,res)=>{
 
