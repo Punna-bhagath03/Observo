@@ -28,7 +28,7 @@ describe('Signup endpoints', () => {
 describe('Signin endpoints', () => {
   it("Isn't able to sign in if body is incorrect", async () => {
     try {
-      await axios.post(`${BACKEND_URL}/user/signin`, {
+      await axios.post(`${BACKEND_URL}/user/signup`, {
         email: USER_NAME,
         password: 'password',
       });

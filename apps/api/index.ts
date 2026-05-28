@@ -20,7 +20,7 @@ app.post('/website', authMiddleware, async (req, res) => {
   const website = await prismaClient.website.create({
     data: {
       url: req.body.url,
-      timeAdded: new Date(),
+      time_added: new Date(),
       user_id: req.userId!,
     },
   });
@@ -30,8 +30,8 @@ app.post('/website', authMiddleware, async (req, res) => {
   });
 });
 
-app.get('/status/:websiteId', authMiddleware, (req, res) => {
-  const website = prismaClient.website.findFirst({
+app.get('/status/:websiteId', authMiddleware, async (req, res) => {
+  const website = await prismaClient.website.findFirst({
     where: {
       user_id: req.userId!,
       id: req.params.websiteId,

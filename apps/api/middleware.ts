@@ -6,9 +6,10 @@ export function authMiddleware(
   res: Response,
   next: NextFunction
 ) {
-  const header = req.headers.authorization;
+  const header = req.headers.authorization || req.get('Authorization');
   try {
-    let data = jwt.verify(header, process.env.JWT_SECRET!);
+    console.log(header);
+    let data = jwt.verify(header, process.env.JWT_SECRET!) as jwt.JwtPayload;
     req.userId = data.sub as string;
     next();
   } catch (e) {
