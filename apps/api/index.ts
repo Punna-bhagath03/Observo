@@ -53,6 +53,11 @@ app.get('/status/:websiteId', authMiddleware, async (req, res) => {
     });
     return;
   }
+  res.json({
+    url: website.url,
+    id: website.id,
+    user_id: website.user_id,
+  });
 });
 
 app.post('/user/signup', async (req, res) => {
