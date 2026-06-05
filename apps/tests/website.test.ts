@@ -68,7 +68,7 @@ describe('Can fetch website', () => {
     const websiteResponse = await axios.post(
       `${BACKEND_URL}/website`,
       {
-        url: 'https://google.com',
+        url: 'http://blob.100xdevs.com/',
       },
       {
         headers: {
@@ -94,7 +94,7 @@ describe('Can fetch website', () => {
     const websiteResponse = await axios.post(
       `${BACKEND_URL}/website`,
       {
-        url: 'https://google.com',
+        url: 'http://blob.100xdevs.com/',
       },
       {
         headers: {

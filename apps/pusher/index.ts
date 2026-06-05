@@ -10,6 +10,7 @@ async function main() {
     },
   });
 
+  console.log('WEBSITES', websites);
   await xAddBulk(
     websites.map((w) => ({
       url: w.url,
@@ -18,8 +19,11 @@ async function main() {
   );
 }
 
-setInterval(() => {
-  main();
-}, 3 * 1000);
+setInterval(
+  () => {
+    main();
+  },
+  3 * 1000 * 60
+);
 
 main();
