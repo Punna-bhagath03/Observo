@@ -20,7 +20,6 @@ export default function Home() {
 
 function Navigation() {
   const router = useRouter()
-
   return (
     <nav className="glass fixed top-0 right-0 left-0 z-50">
       <div className="mx-auto max-w-7xl px-6 py-4">
@@ -57,14 +56,13 @@ function Navigation() {
               >
                 Pricing
               </a>
-            
             </div>
           </div>
           <div className="flex items-center gap-4">
             <a
               href="#"
               className="hidden text-sm text-gray-400 transition-colors hover:text-white sm:block"
-              onClick={()=>{
+              onClick={() => {
                 router.push("/signin")
               }}
             >
@@ -73,7 +71,7 @@ function Navigation() {
             <a
               href="#"
               className="rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-medium transition-all hover:from-cyan-400 hover:to-blue-500"
-              onClick={()=>{
+              onClick={() => {
                 router.push("/signup")
               }}
             >
@@ -682,8 +680,7 @@ function CTA() {
                 href="#"
                 className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-8 py-4 font-medium transition-all hover:from-cyan-400 hover:to-blue-500 sm:w-auto"
               >
-
-                Start Free Trial-1
+                Start Free Trial
               </a>
               <a
                 href="#"
