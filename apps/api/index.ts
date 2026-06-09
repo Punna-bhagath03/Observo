@@ -112,4 +112,15 @@ app.post('/user/signin', async (req, res) => {
     jwt: token,
   });
 });
+
+app.get('/websites', authMiddleware, async (req, res) => {
+  const websites = await prismaClient.website.findMany({
+    where: {
+      user_id: req.userId,
+    },
+  });
+  res.json({
+    websites,
+  });
+});
 app.listen(process.env.PORT || 3000);
