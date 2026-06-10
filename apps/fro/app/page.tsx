@@ -75,7 +75,7 @@ function Navigation() {
                 router.push("/signup")
               }}
             >
-              Start Free Trial-2
+              Start Free Trial
             </a>
           </div>
         </div>

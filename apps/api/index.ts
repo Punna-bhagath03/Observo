@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import 'dotenv/config';
 import express from 'express';
+import cors from 'cors';
 
 const app = express();
 
@@ -10,6 +11,7 @@ import { success } from 'zod';
 import { authMiddleware } from './middleware';
 
 app.use(express.json());
+app.use(cors());
 
 app.post('/website', authMiddleware, async (req, res) => {
   if (!req.body.url) {
