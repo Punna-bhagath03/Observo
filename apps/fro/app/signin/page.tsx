@@ -32,6 +32,7 @@ export default function SignInPage() {
       password,
     })
 
+    localStorage.setItem("token", response.data.jwt)
     setLoading(false)
     router.push("/dashboard")
   }catch (error) {

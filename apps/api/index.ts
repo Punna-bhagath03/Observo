@@ -45,7 +45,7 @@ app.get('/status/:websiteId', authMiddleware, async (req, res) => {
             createdAt: 'desc',
           },
         ],
-        take: 1,
+        take: 10,
       },
     },
   });
@@ -119,6 +119,16 @@ app.get('/websites', authMiddleware, async (req, res) => {
   const websites = await prismaClient.website.findMany({
     where: {
       user_id: req.userId,
+    },
+    include: {
+      ticks: {
+        orderBy: [
+          {
+            createdAt: 'desc',
+          },
+        ],
+        take: 1,
+      },
     },
   });
   res.json({
