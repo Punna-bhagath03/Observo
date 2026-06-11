@@ -60,6 +60,7 @@ app.get('/status/:websiteId', authMiddleware, async (req, res) => {
       url: website.url,
       id: website.id,
       user_id: website.user_id,
+      ticks: website.ticks,
     },
   });
 });

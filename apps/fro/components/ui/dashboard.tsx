@@ -4,6 +4,7 @@ import axios from "axios"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
+
 import { BACKEND_URL } from "@/lib/utils"
 
 import AddWebsiteModal from "./addWebsiteModal"
@@ -40,37 +41,52 @@ export default function DashboardPage({ onSignOut }: DashboardPageProps) {
   const router = useRouter()
   const [websites, setWebsites] = useState<Website[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  const fetchWebsites = useCallback(async () => {
-    setError(null)
+  const fetchWebsites = useCallback(
+    async (options?: { refresh?: boolean }) => {
+      setError(null)
+      if (options?.refresh) {
+        setRefreshing(true)
+      }
 
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("token") : null
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null
 
-    if (!token) {
-      router.push("/signin")
-      return
-    }
-
-    try {
-      const res = await axios.get<WebsitesResponse>(`${BACKEND_URL}/websites`, {
-        headers: { Authorization: token },
-      })
-      setWebsites(res.data.websites ?? [])
-    } catch (err) {
-      console.error(err)
-      if (axios.isAxiosError(err) && err.response?.status === 403) {
-        localStorage.removeItem("token")
+      if (!token) {
+        setLoading(false)
+        setRefreshing(false)
         router.push("/signin")
         return
       }
-      setError("Could not load your websites. Please try again.")
-    } finally {
-      setLoading(false)
-    }
-  }, [router])
+
+      try {
+        const res = await axios.get<WebsitesResponse>(
+          `${BACKEND_URL}/websites`,
+          {
+            headers: { Authorization: token },
+          }
+        )
+        setWebsites(res.data.websites ?? [])
+      } catch (err) {
+        console.error(err)
+        if (axios.isAxiosError(err) && err.response?.status === 403) {
+          localStorage.removeItem("token")
+          setLoading(false)
+          setRefreshing(false)
+          router.push("/signin")
+          return
+        }
+        setError("Could not load your websites. Please try again.")
+      } finally {
+        setLoading(false)
+        setRefreshing(false)
+      }
+    },
+    [router]
+  )
 
   useEffect(() => {
     fetchWebsites()
@@ -125,26 +141,52 @@ export default function DashboardPage({ onSignOut }: DashboardPageProps) {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center gap-2 self-start rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-all hover:from-cyan-400 hover:to-blue-500 sm:self-auto"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => fetchWebsites({ refresh: true })}
+              disabled={loading || refreshing}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-gray-200 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
+              <Spinner
+                className={`h-4 w-4 text-cyan-400 ${refreshing ? "" : "hidden"}`}
               />
-            </svg>
-            Add website
-          </button>
+              <svg
+                className={`h-4 w-4 ${refreshing ? "hidden" : ""}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-all hover:from-cyan-400 hover:to-blue-500"
+            >
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              Add website
+            </button>
+          </div>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-xl">
@@ -213,10 +255,8 @@ function WebsitesTable({ websites }: { websites: Website[] }) {
                 </td>
                 <td className="px-6 py-4">
                   <a
-                    href={website.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="Open website in new tab"
+                    href={`/website/${website.id}`}
+                    aria-label="View website details"
                     className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
                   >
                     <svg
@@ -261,7 +301,7 @@ function StatusBadge({ status }: { status: "Up" | "Down" | "checking" }) {
       dot: "bg-yellow-500",
       pulse: false,
       pill: "border-yellow-500/30 bg-yellow-500/10 text-yellow-300",
-      label: "checking",
+      label: "Checking",
     },
   }[status]
 
@@ -269,36 +309,42 @@ function StatusBadge({ status }: { status: "Up" | "Down" | "checking" }) {
     <span
       className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium ${styles.pill}`}
     >
-      <span
-        className={`h-2 w-2 rounded-full ${styles.dot} ${styles.pulse ? "animate-pulse" : ""}`}
-      />
+      {status === "checking" ? (
+        <Spinner className="h-3 w-3 text-yellow-400" />
+      ) : (
+        <span
+          className={`h-2 w-2 rounded-full ${styles.dot} ${styles.pulse ? "animate-pulse" : ""}`}
+        />
+      )}
       {styles.label}
     </span>
+  )
+}
+
+function Spinner({ className }: { className?: string }) {
+  return (
+    <svg className={`animate-spin ${className ?? "h-4 w-4"}`} fill="none" viewBox="0 0 24 24">
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+      />
+    </svg>
   )
 }
 
 function LoadingState() {
   return (
     <div className="flex items-center justify-center px-6 py-20 text-sm text-gray-400">
-      <svg
-        className="mr-3 h-5 w-5 animate-spin text-cyan-400"
-        fill="none"
-        viewBox="0 0 24 24"
-      >
-        <circle
-          className="opacity-25"
-          cx="12"
-          cy="12"
-          r="10"
-          stroke="currentColor"
-          strokeWidth="4"
-        />
-        <path
-          className="opacity-75"
-          fill="currentColor"
-          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-        />
-      </svg>
+      <Spinner className="mr-3 h-5 w-5 text-cyan-400" />
       Loading websites...
     </div>
   )
