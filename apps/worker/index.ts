@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { xAckBulk, xReadGroup } from 'redisstream/client';
+import { ensureConsumerGroup, xAckBulk, xReadGroup } from 'redisstream/client';
 import { prismaClient } from 'store/client';
 
 const REGION_ID = process.env.REGION_ID!;
@@ -68,8 +68,5 @@ async function fetchWebsite(url: string, websiteId: string) {
   });
 }
 
+await ensureConsumerGroup(REGION_ID);
 main();
-
-// while (true) {
-//   await main();
-// }

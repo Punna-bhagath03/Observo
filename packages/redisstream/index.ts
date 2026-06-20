@@ -22,6 +22,18 @@ async function xAdd({ url, id }: WebsiteEvent) {
   });
 }
 
+export async function ensureConsumerGroup(consumerGroup: string) {
+  try {
+    await client.xGroupCreate(STREAM_NAME, consumerGroup, '0', {
+      MKSTREAM: true,
+    });
+  } catch (e) {
+    if (!(e instanceof Error) || !e.message.includes('BUSYGROUP')) {
+      throw e;
+    }
+  }
+}
+
 export async function xAddBulk(websites: WebsiteEvent[]) {
   for (let i = 0; i < websites.length; i++) {
     await xAdd({
