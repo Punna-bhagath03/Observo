@@ -106,7 +106,7 @@ describe('Can fetch website', () => {
     try {
       await axios.get(`${BACKEND_URL}/status/${websiteResponse.data.id}`, {
         headers: {
-          Authorization: token1,
+          Authorization: token2,
         },
       });
       expect(false, 'shouldnt be able to access website of diff user');

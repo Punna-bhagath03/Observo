@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { describe, it, expect, console } from 'bun:test';
+import { describe, it, expect } from 'bun:test';
 import { BACKEND_URL } from './config';
 
 const USER_NAME = Math.random().toString();

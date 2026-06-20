@@ -4,7 +4,12 @@ import axios from "axios"
 import { useParams, useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
-import { BACKEND_URL } from "@/lib/utils"
+import {
+  BACKEND_URL,
+  getSelectedRegionId,
+  setSelectedRegionId,
+} from "@/lib/utils"
+import RegionSelect, { type Region } from "@/components/ui/regionSelect"
 
 type WebsiteTick = {
   status: "Up" | "Down" | "Unknown"
@@ -23,6 +28,10 @@ type StatusResponse = {
   website: WebsiteDetail
 }
 
+type RegionsResponse = {
+  regions: Region[]
+}
+
 function getOverallStatus(ticks?: WebsiteTick[]): "Up" | "Down" | "checking" {
   const latest = ticks?.[0]
   if (!latest || latest.status === "Unknown") return "checking"
@@ -37,8 +46,16 @@ export default function WebsitePage() {
   const [website, setWebsite] = useState<WebsiteDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [regions, setRegions] = useState<Region[]>([])
+  const [selectedRegionId, setSelectedRegionIdState] = useState<string | null>(
+    null
+  )
 
   const fetchWebsite = useCallback(async () => {
+    if (!selectedRegionId) {
+      return
+    }
+
     setError(null)
 
     const token =
@@ -51,7 +68,7 @@ export default function WebsitePage() {
 
     try {
       const res = await axios.get<StatusResponse>(
-        `${BACKEND_URL}/status/${websiteId}`,
+        `${BACKEND_URL}/status/${websiteId}?regionId=${selectedRegionId}`,
         { headers: { Authorization: token } }
       )
       setWebsite({
@@ -69,11 +86,50 @@ export default function WebsitePage() {
     } finally {
       setLoading(false)
     }
-  }, [router, websiteId])
+  }, [router, websiteId, selectedRegionId])
 
   useEffect(() => {
-    fetchWebsite()
-  }, [fetchWebsite])
+    axios
+      .get<RegionsResponse>(`${BACKEND_URL}/regions`)
+      .then((res) => {
+        const list = res.data.regions ?? []
+        setRegions(list)
+
+        const saved = getSelectedRegionId()
+        const isValid = saved && list.some((region) => region.id === saved)
+        const india = list.find((region) => region.name === "India")
+        const regionId = isValid ? saved! : india?.id ?? list[0]?.id ?? null
+
+        if (regionId) {
+          setSelectedRegionIdState(regionId)
+          if (!isValid) {
+            setSelectedRegionId(regionId)
+          }
+        } else {
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        console.error(err)
+        setError("Could not load regions. Please try again.")
+        setLoading(false)
+      })
+  }, [])
+
+  useEffect(() => {
+    if (selectedRegionId) {
+      setLoading(true)
+      fetchWebsite()
+    }
+  }, [fetchWebsite, selectedRegionId])
+
+  function handleRegionChange(regionId: string) {
+    setSelectedRegionId(regionId)
+    setSelectedRegionIdState(regionId)
+  }
+
+  const selectedRegionName =
+    regions.find((region) => region.id === selectedRegionId)?.name ?? "India"
 
   const ticks = website?.ticks ?? []
   const overallStatus = getOverallStatus(ticks)
@@ -122,11 +178,20 @@ export default function WebsitePage() {
           <ErrorState message={error} onRetry={fetchWebsite} />
         ) : website ? (
           <>
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold md:text-4xl">Website details</h1>
-              <p className="mt-2 text-sm text-gray-400">
-                Last 10 uptime checks for this endpoint.
-              </p>
+            <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h1 className="text-3xl font-bold md:text-4xl">Website details</h1>
+                <p className="mt-2 text-sm text-gray-400">
+                  Last 10 uptime checks from {selectedRegionName}.
+                </p>
+              </div>
+
+              <RegionSelect
+                regions={regions}
+                value={selectedRegionId ?? ""}
+                onChange={handleRegionChange}
+                disabled={loading || regions.length === 0}
+              />
             </div>
 
             <div className="mb-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-2xl backdrop-blur-xl">

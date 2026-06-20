@@ -7,11 +7,40 @@ const app = express();
 
 import { prismaClient } from 'store/client';
 import { AuthInput } from './types';
-import { success } from 'zod';
 import { authMiddleware } from './middleware';
+
+async function resolveRegionId(
+  regionId: string | undefined
+): Promise<string | null> {
+  if (regionId) {
+    const region = await prismaClient.region.findFirst({
+      where: { id: regionId },
+    });
+    return region?.id ?? null;
+  }
+
+  const india = await prismaClient.region.findFirst({
+    where: { name: 'India' },
+  });
+  return india?.id ?? null;
+}
 
 app.use(express.json());
 app.use(cors());
+
+app.get('/regions', async (req, res) => {
+  const regions = await prismaClient.region.findMany({
+    select: {
+      id: true,
+      name: true,
+    },
+    orderBy: {
+      name: 'asc',
+    },
+  });
+
+  res.json({ regions });
+});
 
 app.post('/website', authMiddleware, async (req, res) => {
   if (!req.body.url) {
@@ -33,6 +62,14 @@ app.post('/website', authMiddleware, async (req, res) => {
 });
 
 app.get('/status/:websiteId', authMiddleware, async (req, res) => {
+  const regionId = await resolveRegionId(
+    typeof req.query.regionId === 'string' ? req.query.regionId : undefined
+  );
+  if (!regionId) {
+    res.status(403).send('');
+    return;
+  }
+
   const website = await prismaClient.website.findFirst({
     where: {
       user_id: req.userId!,
@@ -40,6 +77,9 @@ app.get('/status/:websiteId', authMiddleware, async (req, res) => {
     },
     include: {
       ticks: {
+        where: {
+          region_id: regionId,
+        },
         orderBy: [
           {
             createdAt: 'desc',
@@ -117,12 +157,23 @@ app.post('/user/signin', async (req, res) => {
 });
 
 app.get('/websites', authMiddleware, async (req, res) => {
+  const regionId = await resolveRegionId(
+    typeof req.query.regionId === 'string' ? req.query.regionId : undefined
+  );
+  if (!regionId) {
+    res.status(403).send('');
+    return;
+  }
+
   const websites = await prismaClient.website.findMany({
     where: {
       user_id: req.userId,
     },
     include: {
       ticks: {
+        where: {
+          region_id: regionId,
+        },
         orderBy: [
           {
             createdAt: 'desc',
@@ -136,4 +187,5 @@ app.get('/websites', authMiddleware, async (req, res) => {
     websites,
   });
 });
+
 app.listen(process.env.PORT || 3000);

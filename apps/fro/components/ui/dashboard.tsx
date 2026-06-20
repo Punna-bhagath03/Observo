@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
 
-import { BACKEND_URL } from "@/lib/utils"
+import { BACKEND_URL, getSelectedRegionId, setSelectedRegionId } from "@/lib/utils"
 
 import AddWebsiteModal from "./addWebsiteModal"
+import RegionSelect, { type Region } from "./regionSelect"
 
 type WebsiteTick = {
   status: "Up" | "Down" | "Unknown"
@@ -27,6 +28,10 @@ type WebsitesResponse = {
   websites: Website[]
 }
 
+type RegionsResponse = {
+  regions: Region[]
+}
+
 function getStatus(website: Website): "Up" | "Down" | "checking" {
   const latest = website.ticks?.[0]
   if (!latest || latest.status === "Unknown") return "checking"
@@ -44,9 +49,17 @@ export default function DashboardPage({ onSignOut }: DashboardPageProps) {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [regions, setRegions] = useState<Region[]>([])
+  const [selectedRegionId, setSelectedRegionIdState] = useState<string | null>(
+    null
+  )
 
   const fetchWebsites = useCallback(
     async (options?: { refresh?: boolean }) => {
+      if (!selectedRegionId) {
+        return
+      }
+
       setError(null)
       if (options?.refresh) {
         setRefreshing(true)
@@ -64,7 +77,7 @@ export default function DashboardPage({ onSignOut }: DashboardPageProps) {
 
       try {
         const res = await axios.get<WebsitesResponse>(
-          `${BACKEND_URL}/websites`,
+          `${BACKEND_URL}/websites?regionId=${selectedRegionId}`,
           {
             headers: { Authorization: token },
           }
@@ -85,12 +98,50 @@ export default function DashboardPage({ onSignOut }: DashboardPageProps) {
         setRefreshing(false)
       }
     },
-    [router]
+    [router, selectedRegionId]
   )
 
   useEffect(() => {
-    fetchWebsites()
-  }, [fetchWebsites])
+    axios
+      .get<RegionsResponse>(`${BACKEND_URL}/regions`)
+      .then((res) => {
+        const list = res.data.regions ?? []
+        setRegions(list)
+
+        const saved = getSelectedRegionId()
+        const isValid = saved && list.some((region) => region.id === saved)
+        const india = list.find((region) => region.name === "India")
+        const regionId = isValid ? saved! : india?.id ?? list[0]?.id ?? null
+
+        if (regionId) {
+          setSelectedRegionIdState(regionId)
+          if (!isValid) {
+            setSelectedRegionId(regionId)
+          }
+        } else {
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        console.error(err)
+        setError("Could not load regions. Please try again.")
+        setLoading(false)
+      })
+  }, [])
+
+  useEffect(() => {
+    if (selectedRegionId) {
+      fetchWebsites()
+    }
+  }, [fetchWebsites, selectedRegionId])
+
+  function handleRegionChange(regionId: string) {
+    setSelectedRegionId(regionId)
+    setSelectedRegionIdState(regionId)
+  }
+
+  const selectedRegionName =
+    regions.find((region) => region.id === selectedRegionId)?.name ?? "India"
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0a0a0f] via-[#0d0d15] to-[#0a0a0f] text-white">
@@ -137,11 +188,17 @@ export default function DashboardPage({ onSignOut }: DashboardPageProps) {
             <p className="mt-2 text-sm text-gray-400">
               {loading
                 ? "Loading your monitored endpoints..."
-                : `${websites.length} ${websites.length === 1 ? "endpoint" : "endpoints"} being monitored.`}
+                : `${websites.length} ${websites.length === 1 ? "endpoint" : "endpoints"} monitored from ${selectedRegionName}.`}
             </p>
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto">
+            <RegionSelect
+              regions={regions}
+              value={selectedRegionId ?? ""}
+              onChange={handleRegionChange}
+              disabled={loading || refreshing || regions.length === 0}
+            />
             <button
               type="button"
               onClick={() => fetchWebsites({ refresh: true })}

@@ -1,6 +1,23 @@
 import axios from 'axios';
 import { BACKEND_URL } from './config';
 
+export async function seedTick(
+  websiteId: string,
+  regionId: string,
+  status: 'Up' | 'Down'
+) {
+  const { prismaClient } = await import('store/client');
+
+  await prismaClient.website_tick.create({
+    data: {
+      website_id: websiteId,
+      region_id: regionId,
+      response_time_ms: 100,
+      status,
+    },
+  });
+}
+
 export async function createUser(): Promise<{
   id: string;
   jwt: string;

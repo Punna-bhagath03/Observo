@@ -82,6 +82,10 @@
     },
     "apps/tests": {
       "name": "tests",
+      "dependencies": {
+        "dotenv": "^17.4.2",
+        "store": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "^1.3.14",
       },
