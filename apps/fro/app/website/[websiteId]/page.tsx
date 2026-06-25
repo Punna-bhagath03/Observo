@@ -22,6 +22,15 @@ type WebsiteDetail = {
   url: string
   user_id: string
   ticks: WebsiteTick[]
+  stats: WebsiteStats
+}
+
+type WebsiteStats = {
+  uptimePercentage: number
+  avgResponseTimeMs: number
+  failures: number
+  totalChecks: number
+  lastOutageAt: string | null
 }
 
 type StatusResponse = {
@@ -74,6 +83,7 @@ export default function WebsitePage() {
       setWebsite({
         ...res.data.website,
         ticks: res.data.website.ticks ?? [],
+        stats: res.data.website.stats,
       })
     } catch (err) {
       console.error(err)
@@ -182,7 +192,7 @@ export default function WebsitePage() {
               <div>
                 <h1 className="text-3xl font-bold md:text-4xl">Website details</h1>
                 <p className="mt-2 text-sm text-gray-400">
-                  Last 10 uptime checks from {selectedRegionName}.
+                  Last 24 hours of uptime checks from {selectedRegionName}.
                 </p>
               </div>
 
@@ -234,7 +244,10 @@ export default function WebsitePage() {
                   No checks recorded yet. The worker will populate ticks shortly.
                 </div>
               ) : (
-                <RecentStatusChecks ticks={ticks} />
+                <RecentStatusChecks
+                  ticks={ticks}
+                  stats={website.stats}
+                />
               )}
             </div>
           </>
@@ -244,17 +257,14 @@ export default function WebsitePage() {
   )
 }
 
-function RecentStatusChecks({ ticks }: { ticks: WebsiteTick[] }) {
+function RecentStatusChecks({
+  ticks,
+  stats,
+}: {
+  ticks: WebsiteTick[]
+  stats: WebsiteStats
+}) {
   const timeline = [...ticks].reverse()
-  const upCount = ticks.filter((t) => t.status === "Up").length
-  const successRate =
-    ticks.length > 0 ? ((upCount / ticks.length) * 100).toFixed(1) : "0.0"
-  const avgResponse =
-    ticks.length > 0
-      ? Math.round(
-          ticks.reduce((sum, t) => sum + t.response_time_ms, 0) / ticks.length
-        )
-      : 0
 
   return (
     <div className="p-4 sm:p-5">
@@ -262,7 +272,7 @@ function RecentStatusChecks({ ticks }: { ticks: WebsiteTick[] }) {
         <div>
           <h2 className="text-lg font-bold text-white">Recent Status Checks</h2>
           <p className="text-xs text-gray-400">
-            Last 10 monitoring checks with response times
+            Last 10 checks shown · stats from last 24 hours
           </p>
         </div>
         <div className="flex items-center gap-3 text-xs text-gray-400">
@@ -286,17 +296,31 @@ function RecentStatusChecks({ ticks }: { ticks: WebsiteTick[] }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 border-t border-white/5 pt-4">
+      {stats.lastOutageAt ? (
+        <p className="mb-4 text-xs text-gray-400">
+          Last outage: {new Date(stats.lastOutageAt).toLocaleString()}
+        </p>
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-3 border-t border-white/5 pt-4 sm:grid-cols-4">
         <div className="text-center">
-          <p className="text-xl font-bold text-white">{successRate}%</p>
-          <p className="text-xs text-gray-400">Success Rate</p>
+          <p className="text-xl font-bold text-white">
+            {stats.uptimePercentage}%
+          </p>
+          <p className="text-xs text-gray-400">Uptime</p>
         </div>
         <div className="text-center">
-          <p className="text-xl font-bold text-white">{avgResponse}ms</p>
+          <p className="text-xl font-bold text-white">
+            {stats.avgResponseTimeMs}ms
+          </p>
           <p className="text-xs text-gray-400">Avg Response</p>
         </div>
         <div className="text-center">
-          <p className="text-xl font-bold text-white">{ticks.length}</p>
+          <p className="text-xl font-bold text-white">{stats.failures}</p>
+          <p className="text-xs text-gray-400">Failures</p>
+        </div>
+        <div className="text-center">
+          <p className="text-xl font-bold text-white">{stats.totalChecks}</p>
           <p className="text-xs text-gray-400">Total Checks</p>
         </div>
       </div>

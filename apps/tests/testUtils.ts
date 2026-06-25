@@ -4,7 +4,8 @@ import { BACKEND_URL } from './config';
 export async function seedTick(
   websiteId: string,
   regionId: string,
-  status: 'Up' | 'Down'
+  status: 'Up' | 'Down',
+  responseTimeMs = 100
 ) {
   const { prismaClient } = await import('store/client');
 
@@ -12,7 +13,7 @@ export async function seedTick(
     data: {
       website_id: websiteId,
       region_id: regionId,
-      response_time_ms: 100,
+      response_time_ms: responseTimeMs,
       status,
     },
   });

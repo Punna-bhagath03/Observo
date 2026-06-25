@@ -8,6 +8,7 @@ const app = express();
 import { prismaClient } from 'store/client';
 import { AuthInput } from './types';
 import { authMiddleware } from './middleware';
+import { computeStats, getStatsWindowStart } from './aggregation';
 
 async function resolveRegionId(
   regionId: string | undefined
@@ -75,19 +76,6 @@ app.get('/status/:websiteId', authMiddleware, async (req, res) => {
       user_id: req.userId!,
       id: req.params.websiteId,
     },
-    include: {
-      ticks: {
-        where: {
-          region_id: regionId,
-        },
-        orderBy: [
-          {
-            createdAt: 'desc',
-          },
-        ],
-        take: 10,
-      },
-    },
   });
   if (!website) {
     res.status(409).json({
@@ -95,12 +83,28 @@ app.get('/status/:websiteId', authMiddleware, async (req, res) => {
     });
     return;
   }
+
+  const windowStart = getStatsWindowStart();
+  const ticks = await prismaClient.website_tick.findMany({
+    where: {
+      website_id: website.id,
+      region_id: regionId,
+      createdAt: {
+        gte: windowStart,
+      },
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+
   res.json({
     website: {
       url: website.url,
       id: website.id,
       user_id: website.user_id,
-      ticks: website.ticks,
+      ticks: ticks.slice(0, 10),
+      stats: computeStats(ticks),
     },
   });
 });
@@ -169,22 +173,48 @@ app.get('/websites', authMiddleware, async (req, res) => {
     where: {
       user_id: req.userId,
     },
-    include: {
-      ticks: {
-        where: {
-          region_id: regionId,
-        },
-        orderBy: [
-          {
+  });
+
+  const websiteIds = websites.map((website) => website.id);
+  const windowStart = getStatsWindowStart();
+  const ticks =
+    websiteIds.length > 0
+      ? await prismaClient.website_tick.findMany({
+          where: {
+            website_id: {
+              in: websiteIds,
+            },
+            region_id: regionId,
+            createdAt: {
+              gte: windowStart,
+            },
+          },
+          orderBy: {
             createdAt: 'desc',
           },
-        ],
-        take: 1,
-      },
-    },
-  });
+        })
+      : [];
+
+  const ticksByWebsite = new Map<string, typeof ticks>();
+  for (const tick of ticks) {
+    const websiteTicks = ticksByWebsite.get(tick.website_id) ?? [];
+    websiteTicks.push(tick);
+    ticksByWebsite.set(tick.website_id, websiteTicks);
+  }
+
   res.json({
-    websites,
+    websites: websites.map((website) => {
+      const websiteTicks = ticksByWebsite.get(website.id) ?? [];
+
+      return {
+        id: website.id,
+        url: website.url,
+        user_id: website.user_id,
+        time_added: website.time_added,
+        ticks: websiteTicks.slice(0, 1),
+        stats: computeStats(websiteTicks),
+      };
+    }),
   });
 });
 

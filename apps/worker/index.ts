@@ -4,6 +4,7 @@ import { prismaClient } from 'store/client';
 
 const REGION_ID = process.env.REGION_ID!;
 const WORKER_ID = process.env.WORKER_ID!;
+const PROBE_TIMEOUT_MS = 10_000;
 
 if (!REGION_ID) {
   throw new Error('region id  not provided');
@@ -38,7 +39,7 @@ async function fetchWebsite(url: string, websiteId: string) {
     const startTime = Date.now();
     // console.log('Processing', url, websiteId);
     axios
-      .get(url)
+      .get(url, { timeout: PROBE_TIMEOUT_MS })
       .then(async () => {
         // console.log('UP', url);
         const endTime = Date.now();

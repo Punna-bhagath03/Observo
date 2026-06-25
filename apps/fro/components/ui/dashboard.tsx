@@ -22,6 +22,15 @@ type Website = {
   user_id: string
   time_added: string
   ticks?: WebsiteTick[]
+  stats: WebsiteStats
+}
+
+type WebsiteStats = {
+  uptimePercentage: number
+  avgResponseTimeMs: number
+  failures: number
+  totalChecks: number
+  lastOutageAt: string | null
 }
 
 type WebsitesResponse = {
@@ -276,6 +285,7 @@ function WebsitesTable({ websites }: { websites: Website[] }) {
           <tr className="border-b border-white/5 text-left text-xs font-medium tracking-wider text-gray-400 uppercase">
             <th className="px-6 py-4">Website</th>
             <th className="px-6 py-4">Status</th>
+            <th className="px-6 py-4">Uptime (24h)</th>
             <th className="px-6 py-4">Response time</th>
             <th className="px-6 py-4">Last checked</th>
             <th className="px-6 py-4">Actions</th>
@@ -303,6 +313,11 @@ function WebsitesTable({ websites }: { websites: Website[] }) {
                 </td>
                 <td className="px-6 py-4">
                   <StatusBadge status={status} />
+                </td>
+                <td className="px-6 py-4 text-sm text-gray-300">
+                  {website.stats.totalChecks > 0
+                    ? `${website.stats.uptimePercentage}%`
+                    : "—"}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-300">
                   {typeof responseTime === "number" ? `${responseTime} ms` : "—"}
