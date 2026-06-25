@@ -13,10 +13,12 @@ datasource db {
 }
 
 model user {
-  id              String      @id       @default(uuid())
-  username        String
-  password        String
-  websites        website[]
+  id                     String     @id       @default(uuid())
+  username               String
+  password               String
+  websites               website[]
+  acknowledged_incidents incident[] @relation("IncidentAcknowledgedBy")
+  resolved_incidents     incident[] @relation("IncidentResolvedBy")
 }
 
 model website {
@@ -25,6 +27,7 @@ model website {
   user_id       String
   time_added    DateTime
   ticks         website_tick[]
+  incidents     incident[]
   user          user        @relation(fields: [user_id], references: [id])
 
 }
@@ -33,6 +36,24 @@ model region {
   id        String      @id       @default(uuid())
   name      String
   tickes    website_tick[]
+  incidents incident[]
+}
+
+model incident {
+  id                      String    @id @default(uuid())
+  website_id              String
+  region_id               String
+  started_at              DateTime
+  resolved_at             DateTime?
+  acknowledged_at         DateTime?
+  acknowledged_by_user_id String?
+  resolved_by_user_id     String?
+  website                 website   @relation(fields: [website_id], references: [id])
+  region                  region    @relation(fields: [region_id], references: [id])
+  acknowledged_by         user?     @relation("IncidentAcknowledgedBy", fields: [acknowledged_by_user_id], references: [id])
+  resolved_by             user?     @relation("IncidentResolvedBy", fields: [resolved_by_user_id], references: [id])
+
+  @@index([website_id, region_id, started_at])
 }
 
 model website_tick {

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { describe, it, expect } from 'bun:test';
 import { BACKEND_URL } from './config';
+import { trackTestUser } from './testUtils';
 
 const USER_NAME = Math.random().toString();
 
@@ -22,6 +23,7 @@ describe('Signup endpoints', () => {
     });
     expect(res.status).toBe(200);
     expect(res.data.id).toBeDefined();
+    trackTestUser(res.data.id);
   });
 });
 

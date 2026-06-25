@@ -12,10 +12,14 @@
     "seed": "bun prisma/seed.ts"
   },
   "scripts": {
-    "seed": "bun prisma/seed.ts"
+    "seed": "bun prisma/seed.ts",
+    "cleanup-dev": "bun cleanup-dev.ts"
   },
   "exports": {
-    "./client": "./index.ts"
+    "./client": "./index.ts",
+    "./incidents": "./incidents.ts",
+    "./timeline": "./timeline.ts",
+    "./cleanup-dev": "./cleanup-dev.ts"
   },
   "peerDependencies": {
     "typescript": "^5"

@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react"
 import { BACKEND_URL, getSelectedRegionId, setSelectedRegionId } from "@/lib/utils"
 
 import AddWebsiteModal from "./addWebsiteModal"
+import { OngoingOutageBadge } from "./incidentsList"
 import RegionSelect, { type Region } from "./regionSelect"
 
 type WebsiteTick = {
@@ -23,6 +24,7 @@ type Website = {
   time_added: string
   ticks?: WebsiteTick[]
   stats: WebsiteStats
+  ongoingIncident: boolean
 }
 
 type WebsiteStats = {
@@ -312,7 +314,10 @@ function WebsitesTable({ websites }: { websites: Website[] }) {
                   </a>
                 </td>
                 <td className="px-6 py-4">
-                  <StatusBadge status={status} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge status={status} />
+                    {website.ongoingIncident ? <OngoingOutageBadge /> : null}
+                  </div>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-300">
                   {website.stats.totalChecks > 0

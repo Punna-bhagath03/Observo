@@ -10,6 +10,13 @@ import {
   setSelectedRegionId,
 } from "@/lib/utils"
 import RegionSelect, { type Region } from "@/components/ui/regionSelect"
+import IncidentsList, {
+  OngoingOutageBadge,
+  type Incident,
+} from "@/components/ui/incidentsList"
+import IncidentTimeline, {
+  type TimelineEvent,
+} from "@/components/ui/incidentTimeline"
 
 type WebsiteTick = {
   status: "Up" | "Down" | "Unknown"
@@ -37,6 +44,14 @@ type StatusResponse = {
   website: WebsiteDetail
 }
 
+type IncidentsResponse = {
+  incidents: Incident[]
+}
+
+type TimelineResponse = {
+  events: TimelineEvent[]
+}
+
 type RegionsResponse = {
   regions: Region[]
 }
@@ -53,7 +68,10 @@ export default function WebsitePage() {
   const websiteId = params.websiteId as string
 
   const [website, setWebsite] = useState<WebsiteDetail | null>(null)
+  const [incidents, setIncidents] = useState<Incident[]>([])
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [incidentActionLoading, setIncidentActionLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [regions, setRegions] = useState<Region[]>([])
   const [selectedRegionId, setSelectedRegionIdState] = useState<string | null>(
@@ -76,15 +94,28 @@ export default function WebsitePage() {
     }
 
     try {
-      const res = await axios.get<StatusResponse>(
-        `${BACKEND_URL}/status/${websiteId}?regionId=${selectedRegionId}`,
-        { headers: { Authorization: token } }
-      )
+      const [statusRes, incidentsRes, timelineRes] = await Promise.all([
+        axios.get<StatusResponse>(
+          `${BACKEND_URL}/status/${websiteId}?regionId=${selectedRegionId}`,
+          { headers: { Authorization: token } }
+        ),
+        axios.get<IncidentsResponse>(
+          `${BACKEND_URL}/status/${websiteId}/incidents?regionId=${selectedRegionId}`,
+          { headers: { Authorization: token } }
+        ),
+        axios.get<TimelineResponse>(
+          `${BACKEND_URL}/status/${websiteId}/timeline?regionId=${selectedRegionId}`,
+          { headers: { Authorization: token } }
+        ),
+      ])
+
       setWebsite({
-        ...res.data.website,
-        ticks: res.data.website.ticks ?? [],
-        stats: res.data.website.stats,
+        ...statusRes.data.website,
+        ticks: statusRes.data.website.ticks ?? [],
+        stats: statusRes.data.website.stats,
       })
+      setIncidents(incidentsRes.data.incidents ?? [])
+      setTimeline(timelineRes.data.events ?? [])
     } catch (err) {
       console.error(err)
       if (axios.isAxiosError(err) && err.response?.status === 403) {
@@ -97,6 +128,40 @@ export default function WebsitePage() {
       setLoading(false)
     }
   }, [router, websiteId, selectedRegionId])
+
+  async function runIncidentAction(path: string) {
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("token") : null
+
+    if (!token) {
+      router.push("/signin")
+      return
+    }
+
+    setIncidentActionLoading(true)
+
+    try {
+      await axios.post(`${BACKEND_URL}${path}`, null, {
+        headers: { Authorization: token },
+      })
+      await fetchWebsite()
+    } catch (err) {
+      console.error(err)
+      setError("Could not update the incident. Please try again.")
+    } finally {
+      setIncidentActionLoading(false)
+    }
+  }
+
+  function handleAcknowledge(incidentId: string) {
+    runIncidentAction(
+      `/status/${websiteId}/incidents/${incidentId}/acknowledge`
+    )
+  }
+
+  function handleResolve(incidentId: string) {
+    runIncidentAction(`/status/${websiteId}/incidents/${incidentId}/resolve`)
+  }
 
   useEffect(() => {
     axios
@@ -143,6 +208,7 @@ export default function WebsitePage() {
 
   const ticks = website?.ticks ?? []
   const overallStatus = getOverallStatus(ticks)
+  const hasOngoingIncident = incidents.some((incident) => incident.ongoing)
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0a0a0f] via-[#0d0d15] to-[#0a0a0f] text-white">
@@ -223,7 +289,10 @@ export default function WebsitePage() {
                   <p className="mb-1 text-xs font-medium tracking-wider text-gray-400 uppercase">
                     Overall status
                   </p>
-                  <StatusBadge status={overallStatus} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge status={overallStatus} />
+                    {hasOngoingIncident ? <OngoingOutageBadge /> : null}
+                  </div>
                 </div>
                 <div>
                   <p className="mb-1 text-xs font-medium tracking-wider text-gray-400 uppercase">
@@ -238,7 +307,7 @@ export default function WebsitePage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-xl">
+            <div className="mb-8 rounded-2xl border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-xl">
               {ticks.length === 0 ? (
                 <div className="px-6 py-20 text-center text-sm text-gray-400">
                   No checks recorded yet. The worker will populate ticks shortly.
@@ -249,6 +318,31 @@ export default function WebsitePage() {
                   stats={website.stats}
                 />
               )}
+            </div>
+
+            <div className="mb-8 rounded-2xl border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-xl">
+              <div className="border-b border-white/5 px-6 py-4">
+                <h2 className="text-lg font-bold text-white">Incidents</h2>
+                <p className="text-xs text-gray-400">
+                  Outage history for {selectedRegionName}.
+                </p>
+              </div>
+              <IncidentsList
+                incidents={incidents}
+                onAcknowledge={handleAcknowledge}
+                onResolve={handleResolve}
+                actionLoading={incidentActionLoading}
+              />
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-xl">
+              <div className="border-b border-white/5 px-6 py-4">
+                <h2 className="text-lg font-bold text-white">Timeline</h2>
+                <p className="text-xs text-gray-400">
+                  Incident activity for {selectedRegionName}.
+                </p>
+              </div>
+              <IncidentTimeline events={timeline} />
             </div>
           </>
         ) : null}
