@@ -287,7 +287,7 @@ function WebsitesTable({ websites }: { websites: Website[] }) {
           <tr className="border-b border-white/5 text-left text-xs font-medium tracking-wider text-gray-400 uppercase">
             <th className="px-6 py-4">Website</th>
             <th className="px-6 py-4">Status</th>
-            <th className="px-6 py-4">Uptime (24h)</th>
+            <th className="px-6 py-4">Availability (24h)</th>
             <th className="px-6 py-4">Response time</th>
             <th className="px-6 py-4">Last checked</th>
             <th className="px-6 py-4">Actions</th>

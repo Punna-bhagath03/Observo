@@ -16,10 +16,14 @@ import {
   buildIncidentTimeline,
   formatTimelineEvent,
 } from 'store/timeline';
-import { buildWebsiteMetrics, parseMetricsQuery } from 'store/metrics';
+import {
+  buildWebsiteMetrics,
+  parseMetricsQuery,
+  resolveStreakStartAt,
+} from 'store/metrics';
 import { AuthInput } from './types';
 import { authMiddleware } from './middleware';
-import { computeStats, getStatsWindowStart } from './aggregation';
+import { computeStats, buildWebsiteStats, getStatsWindowStart } from './aggregation';
 
 async function resolveRegionId(
   regionId: string | undefined
@@ -96,18 +100,33 @@ app.get('/status/:websiteId', authMiddleware, async (req, res) => {
   }
 
   const windowStart = getStatsWindowStart();
-  const ticks = await prismaClient.website_tick.findMany({
-    where: {
-      website_id: website.id,
-      region_id: regionId,
-      createdAt: {
-        gte: windowStart,
+  const windowEnd = new Date();
+  const [ticks, incidents] = await Promise.all([
+    prismaClient.website_tick.findMany({
+      where: {
+        website_id: website.id,
+        region_id: regionId,
+        createdAt: {
+          gte: windowStart,
+        },
       },
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
+      orderBy: {
+        createdAt: 'desc',
+      },
+    }),
+    prismaClient.incident.findMany({
+      where: {
+        website_id: website.id,
+        region_id: regionId,
+      },
+      select: {
+        started_at: true,
+        resolved_at: true,
+      },
+    }),
+  ]);
+
+  const tickStats = buildWebsiteStats(ticks, incidents, windowStart, windowEnd);
 
   res.json({
     website: {
@@ -115,7 +134,7 @@ app.get('/status/:websiteId', authMiddleware, async (req, res) => {
       id: website.id,
       user_id: website.user_id,
       ticks: ticks.slice(0, 10),
-      stats: computeStats(ticks),
+      stats: tickStats,
     },
   });
 });
@@ -280,14 +299,29 @@ app.get('/status/:websiteId/metrics', authMiddleware, async (req, res) => {
     return;
   }
 
-  const [ticks, incidents] = await Promise.all([
+  const [windowTicks, latestTick, incidents] = await Promise.all([
     prismaClient.website_tick.findMany({
       where: {
         website_id: website.id,
         region_id: regionId,
-        createdAt: { gte: website.time_added },
+        createdAt: {
+          gte: parsed.window.from,
+          lte: parsed.window.to,
+        },
       },
       orderBy: { createdAt: 'asc' },
+      select: {
+        status: true,
+        response_time_ms: true,
+        createdAt: true,
+      },
+    }),
+    prismaClient.website_tick.findFirst({
+      where: {
+        website_id: website.id,
+        region_id: regionId,
+      },
+      orderBy: { createdAt: 'desc' },
       select: {
         status: true,
         response_time_ms: true,
@@ -306,9 +340,71 @@ app.get('/status/:websiteId/metrics', authMiddleware, async (req, res) => {
     }),
   ]);
 
+  let monitorStreakStartAt: Date | null = null;
+
+  if (latestTick?.status === 'Up') {
+    const lastDown = await prismaClient.website_tick.findFirst({
+      where: {
+        website_id: website.id,
+        region_id: regionId,
+        status: 'Down',
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        status: true,
+        response_time_ms: true,
+        createdAt: true,
+      },
+    });
+
+    const [firstUpAfterLastDown, firstUpEver] = await Promise.all([
+      lastDown
+        ? prismaClient.website_tick.findFirst({
+            where: {
+              website_id: website.id,
+              region_id: regionId,
+              status: 'Up',
+              createdAt: { gt: lastDown.createdAt },
+            },
+            orderBy: { createdAt: 'asc' },
+            select: {
+              status: true,
+              response_time_ms: true,
+              createdAt: true,
+            },
+          })
+        : Promise.resolve(null),
+      lastDown
+        ? Promise.resolve(null)
+        : prismaClient.website_tick.findFirst({
+            where: {
+              website_id: website.id,
+              region_id: regionId,
+              status: 'Up',
+            },
+            orderBy: { createdAt: 'asc' },
+            select: {
+              status: true,
+              response_time_ms: true,
+              createdAt: true,
+            },
+          }),
+    ]);
+
+    monitorStreakStartAt = resolveStreakStartAt({
+      latest: latestTick,
+      lastDown,
+      firstUpAfterLastDown,
+      firstUpEver,
+      websiteAddedAt: website.time_added,
+    });
+  }
+
   res.json(
     buildWebsiteMetrics({
-      ticks,
+      windowTicks,
+      monitorLatest: latestTick,
+      monitorStreakStartAt,
       incidents,
       websiteAddedAt: website.time_added,
       window: parsed.window,
@@ -388,9 +484,10 @@ app.get('/websites', authMiddleware, async (req, res) => {
 
   const websiteIds = websites.map((website) => website.id);
   const windowStart = getStatsWindowStart();
-  const ticks =
+  const windowEnd = new Date();
+  const [ticks, incidents] = await Promise.all([
     websiteIds.length > 0
-      ? await prismaClient.website_tick.findMany({
+      ? prismaClient.website_tick.findMany({
           where: {
             website_id: {
               in: websiteIds,
@@ -404,13 +501,40 @@ app.get('/websites', authMiddleware, async (req, res) => {
             createdAt: 'desc',
           },
         })
-      : [];
+      : Promise.resolve([]),
+    websiteIds.length > 0
+      ? prismaClient.incident.findMany({
+          where: {
+            website_id: { in: websiteIds },
+            region_id: regionId,
+          },
+          select: {
+            website_id: true,
+            started_at: true,
+            resolved_at: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
 
   const ticksByWebsite = new Map<string, typeof ticks>();
   for (const tick of ticks) {
     const websiteTicks = ticksByWebsite.get(tick.website_id) ?? [];
     websiteTicks.push(tick);
     ticksByWebsite.set(tick.website_id, websiteTicks);
+  }
+
+  const incidentsByWebsite = new Map<
+    string,
+    { started_at: Date; resolved_at: Date | null }[]
+  >();
+  for (const incident of incidents) {
+    const websiteIncidents = incidentsByWebsite.get(incident.website_id) ?? [];
+    websiteIncidents.push({
+      started_at: incident.started_at,
+      resolved_at: incident.resolved_at,
+    });
+    incidentsByWebsite.set(incident.website_id, websiteIncidents);
   }
 
   const ongoingIncidents =
@@ -432,6 +556,7 @@ app.get('/websites', authMiddleware, async (req, res) => {
   res.json({
     websites: websites.map((website) => {
       const websiteTicks = ticksByWebsite.get(website.id) ?? [];
+      const websiteIncidents = incidentsByWebsite.get(website.id) ?? [];
 
       return {
         id: website.id,
@@ -439,7 +564,12 @@ app.get('/websites', authMiddleware, async (req, res) => {
         user_id: website.user_id,
         time_added: website.time_added,
         ticks: websiteTicks.slice(0, 1),
-        stats: computeStats(websiteTicks),
+        stats: buildWebsiteStats(
+          websiteTicks,
+          websiteIncidents,
+          windowStart,
+          windowEnd
+        ),
         ongoingIncident: ongoingByWebsite.has(website.id),
       };
     }),

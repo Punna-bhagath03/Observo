@@ -5,6 +5,8 @@ import {
   clipIncidentDurationMs,
   computeIncidentDowntime,
   computeMonitorSummary,
+  computeMonitorSummaryFromState,
+  resolveStreakStartAt,
   computePeriodStats,
   getBucketMs,
   incidentOverlapsPeriod,
@@ -165,6 +167,47 @@ describe('metrics monitor summary', () => {
     expect(summary.status).toBe('Up');
     expect(summary.upForMs).toBe(60 * 60_000);
     expect(summary.lastCheckedAt).toBe('2026-06-25T11:30:00.000Z');
+  });
+
+  it('derives up time from explicit streak start state', () => {
+    const summary = computeMonitorSummaryFromState(
+      {
+        status: 'Up',
+        response_time_ms: 120,
+        createdAt: new Date('2026-06-25T11:30:00Z'),
+      },
+      new Date('2026-06-25T11:00:00Z'),
+      [],
+      now
+    );
+
+    expect(summary.status).toBe('Up');
+    // Streak started at 11:00, now is 12:00 → 1 hour up (not 30m since last check)
+    expect(summary.upForMs).toBe(60 * 60_000);
+  });
+
+  it('resolves streak start after the latest down tick', () => {
+    const streakStart = resolveStreakStartAt({
+      latest: {
+        status: 'Up',
+        response_time_ms: 120,
+        createdAt: new Date('2026-06-25T11:30:00Z'),
+      },
+      lastDown: {
+        status: 'Down',
+        response_time_ms: 100,
+        createdAt: new Date('2026-06-25T10:00:00Z'),
+      },
+      firstUpAfterLastDown: {
+        status: 'Up',
+        response_time_ms: 110,
+        createdAt: new Date('2026-06-25T11:00:00Z'),
+      },
+      firstUpEver: null,
+      websiteAddedAt: new Date('2026-06-18T00:00:00Z'),
+    });
+
+    expect(streakStart.toISOString()).toBe('2026-06-25T11:00:00.000Z');
   });
 });
 

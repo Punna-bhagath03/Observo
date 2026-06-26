@@ -295,6 +295,60 @@ export function computeMonitorSummary(
   };
 }
 
+export function resolveStreakStartAt(input: {
+  latest: TickInput;
+  lastDown: TickInput | null;
+  firstUpAfterLastDown: TickInput | null;
+  firstUpEver: TickInput | null;
+  websiteAddedAt: Date;
+}): Date {
+  if (input.lastDown) {
+    return (
+      input.firstUpAfterLastDown?.createdAt ??
+      input.latest.createdAt
+    );
+  }
+
+  return input.firstUpEver?.createdAt ?? input.websiteAddedAt;
+}
+
+export function computeMonitorSummaryFromState(
+  latest: TickInput | null,
+  streakStartAt: Date | null,
+  incidents: IncidentInput[],
+  now = new Date()
+): MonitorSummary {
+  if (!latest || latest.status === 'Unknown') {
+    return {
+      status: 'checking',
+      upForMs: null,
+      lastCheckedAt: latest?.createdAt.toISOString() ?? null,
+      incidentCount: incidents.length,
+      checkIntervalMinutes: CHECK_INTERVAL_MINUTES,
+    };
+  }
+
+  if (latest.status === 'Down') {
+    return {
+      status: 'Down',
+      upForMs: null,
+      lastCheckedAt: latest.createdAt.toISOString(),
+      incidentCount: incidents.length,
+      checkIntervalMinutes: CHECK_INTERVAL_MINUTES,
+    };
+  }
+
+  const streakStart = streakStartAt ?? latest.createdAt;
+
+  return {
+    status: 'Up',
+    upForMs: Math.max(now.getTime() - streakStart.getTime(), 0),
+    lastCheckedAt: latest.createdAt.toISOString(),
+    incidentCount: incidents.length,
+    checkIntervalMinutes: CHECK_INTERVAL_MINUTES,
+  };
+}
+
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
@@ -341,7 +395,11 @@ export function buildPresetPeriodStats(
 }
 
 export function buildWebsiteMetrics(input: {
-  ticks: TickInput[];
+  windowTicks?: TickInput[];
+  monitorLatest?: TickInput | null;
+  monitorStreakStartAt?: Date | null;
+  /** @deprecated Use windowTicks + monitorLatest for production callers */
+  ticks?: TickInput[];
   incidents: IncidentInput[];
   websiteAddedAt: Date;
   window: ResolvedWindow;
@@ -351,14 +409,27 @@ export function buildWebsiteMetrics(input: {
 }): WebsiteMetrics {
   const now = input.now ?? new Date();
   const { from, to, bucketMs, range } = input.window;
-  const windowTicks = input.ticks.filter(
-    (tick) =>
-      tick.createdAt.getTime() >= from.getTime() &&
-      tick.createdAt.getTime() <= to.getTime()
-  );
+  const windowTicks =
+    input.windowTicks ??
+    input.ticks?.filter(
+      (tick) =>
+        tick.createdAt.getTime() >= from.getTime() &&
+        tick.createdAt.getTime() <= to.getTime()
+    ) ??
+    [];
+
+  const monitor =
+    input.monitorLatest !== undefined
+      ? computeMonitorSummaryFromState(
+          input.monitorLatest,
+          input.monitorStreakStartAt ?? null,
+          input.incidents,
+          now
+        )
+      : computeMonitorSummary(input.ticks ?? [], input.incidents, now);
 
   return {
-    monitor: computeMonitorSummary(input.ticks, input.incidents, now),
+    monitor,
     graph: {
       range,
       bucketMs,

@@ -195,7 +195,7 @@ describe('Website aggregation stats', () => {
       }
     );
 
-    expect(response.data.website.stats.uptimePercentage).toBe(75);
+    expect(response.data.website.stats.uptimePercentage).toBe(100);
     expect(response.data.website.stats.avgResponseTimeMs).toBe(200);
     expect(response.data.website.stats.failures).toBe(1);
     expect(response.data.website.stats.totalChecks).toBe(4);
@@ -216,7 +216,7 @@ describe('Website aggregation stats', () => {
       (item: { id: string }) => item.id === websiteId
     );
 
-    expect(website.stats.uptimePercentage).toBe(75);
+    expect(website.stats.uptimePercentage).toBe(100);
     expect(website.stats.avgResponseTimeMs).toBe(200);
     expect(website.stats.failures).toBe(1);
     expect(website.stats.totalChecks).toBe(4);

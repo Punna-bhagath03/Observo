@@ -1,7 +1,14 @@
+import { computePeriodStats } from 'store/metrics';
+
 type TickForStats = {
   status: 'Up' | 'Down' | 'Unknown';
   response_time_ms: number;
   createdAt: Date;
+};
+
+type IncidentForStats = {
+  started_at: Date;
+  resolved_at: Date | null;
 };
 
 export type WebsiteStats = {
@@ -47,5 +54,31 @@ export function computeStats(ticks: TickForStats[]): WebsiteStats {
     failures: downTicks.length,
     totalChecks: ticks.length,
     lastOutageAt: lastOutage ? lastOutage.createdAt.toISOString() : null,
+  };
+}
+
+export function buildWebsiteStats(
+  ticks: TickForStats[],
+  incidents: IncidentForStats[],
+  windowStart: Date,
+  windowEnd = new Date()
+): WebsiteStats {
+  const tickStats = computeStats(ticks);
+
+  if (tickStats.totalChecks === 0) {
+    return tickStats;
+  }
+
+  const availability24h = computePeriodStats(
+    'Last 24 hours',
+    windowStart,
+    windowEnd,
+    incidents,
+    windowEnd
+  ).availability;
+
+  return {
+    ...tickStats,
+    uptimePercentage: Number(availability24h.toFixed(1)),
   };
 }
