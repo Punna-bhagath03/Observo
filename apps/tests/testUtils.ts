@@ -13,6 +13,16 @@ export async function seedTick(
   status: 'Up' | 'Down',
   responseTimeMs = 100
 ) {
+  return seedTickAt(websiteId, regionId, status, new Date(), responseTimeMs);
+}
+
+export async function seedTickAt(
+  websiteId: string,
+  regionId: string,
+  status: 'Up' | 'Down',
+  createdAt: Date,
+  responseTimeMs = 100
+) {
   const { prismaClient } = await import('store/client');
 
   return prismaClient.website_tick.create({
@@ -21,6 +31,7 @@ export async function seedTick(
       region_id: regionId,
       response_time_ms: responseTimeMs,
       status,
+      createdAt,
     },
   });
 }

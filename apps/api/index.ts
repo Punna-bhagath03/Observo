@@ -16,6 +16,7 @@ import {
   buildIncidentTimeline,
   formatTimelineEvent,
 } from 'store/timeline';
+import { buildWebsiteMetrics, parseMetricsQuery } from 'store/metrics';
 import { AuthInput } from './types';
 import { authMiddleware } from './middleware';
 import { computeStats, getStatsWindowStart } from './aggregation';
@@ -245,6 +246,78 @@ app.get('/status/:websiteId/timeline', authMiddleware, async (req, res) => {
   );
 
   res.json({ events });
+});
+
+app.get('/status/:websiteId/metrics', authMiddleware, async (req, res) => {
+  const regionId = await resolveRegionId(
+    typeof req.query.regionId === 'string' ? req.query.regionId : undefined
+  );
+  if (!regionId) {
+    res.status(403).send('');
+    return;
+  }
+
+  const parsed = parseMetricsQuery({
+    range:
+      typeof req.query.range === 'string' ? req.query.range : undefined,
+    from: typeof req.query.from === 'string' ? req.query.from : undefined,
+    to: typeof req.query.to === 'string' ? req.query.to : undefined,
+  });
+
+  if (!parsed.ok) {
+    res.status(403).send('');
+    return;
+  }
+
+  const website = await prismaClient.website.findFirst({
+    where: {
+      user_id: req.userId!,
+      id: req.params.websiteId,
+    },
+  });
+  if (!website) {
+    res.status(409).json({ message: 'Not found' });
+    return;
+  }
+
+  const [ticks, incidents] = await Promise.all([
+    prismaClient.website_tick.findMany({
+      where: {
+        website_id: website.id,
+        region_id: regionId,
+        createdAt: { gte: website.time_added },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        status: true,
+        response_time_ms: true,
+        createdAt: true,
+      },
+    }),
+    prismaClient.incident.findMany({
+      where: {
+        website_id: website.id,
+        region_id: regionId,
+      },
+      select: {
+        started_at: true,
+        resolved_at: true,
+      },
+    }),
+  ]);
+
+  res.json(
+    buildWebsiteMetrics({
+      ticks,
+      incidents,
+      websiteAddedAt: website.time_added,
+      window: parsed.window,
+      includePresetPeriodStats: parsed.includePresetPeriodStats,
+      customLabel: parsed.includePresetPeriodStats
+        ? undefined
+        : 'Custom range',
+    })
+  );
 });
 
 app.post('/user/signup', async (req, res) => {

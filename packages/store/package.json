@@ -19,6 +19,7 @@
     "./client": "./index.ts",
     "./incidents": "./incidents.ts",
     "./timeline": "./timeline.ts",
+    "./metrics": "./metrics.ts",
     "./cleanup-dev": "./cleanup-dev.ts"
   },
   "peerDependencies": {

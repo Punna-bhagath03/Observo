@@ -5,7 +5,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export const BACKEND_URL = "http://localhost:3000"
+export const BACKEND_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
 
 const SELECTED_REGION_KEY = "selectedRegionId"
 
@@ -26,7 +27,14 @@ export function formatDuration(ms: number): string {
   if (minutes < 60) return `${minutes}m ${seconds % 60}s`
 
   const hours = Math.floor(minutes / 60)
-  return `${hours}h ${minutes % 60}m`
+  if (hours < 24) return `${hours}h ${minutes % 60}m`
+
+  const days = Math.floor(hours / 24)
+  return `${days}d ${hours % 24}h`
+}
+
+export function formatAvailability(value: number): string {
+  return `${value.toFixed(2).replace(/\.?0+$/, "")}%`
 }
 
 export function formatTimelineDate(iso: string): string {

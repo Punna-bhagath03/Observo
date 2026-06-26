@@ -9,6 +9,7 @@ import {
   getSelectedRegionId,
   setSelectedRegionId,
 } from "@/lib/utils"
+import type { MonitorSummary } from "@/lib/metrics"
 import RegionSelect, { type Region } from "@/components/ui/regionSelect"
 import IncidentsList, {
   OngoingOutageBadge,
@@ -17,27 +18,12 @@ import IncidentsList, {
 import IncidentTimeline, {
   type TimelineEvent,
 } from "@/components/ui/incidentTimeline"
-
-type WebsiteTick = {
-  status: "Up" | "Down" | "Unknown"
-  response_time_ms: number
-  createdAt: string
-}
+import WebsiteMetricsPanel from "@/components/ui/websiteMetrics"
 
 type WebsiteDetail = {
   id: string
   url: string
   user_id: string
-  ticks: WebsiteTick[]
-  stats: WebsiteStats
-}
-
-type WebsiteStats = {
-  uptimePercentage: number
-  avgResponseTimeMs: number
-  failures: number
-  totalChecks: number
-  lastOutageAt: string | null
 }
 
 type StatusResponse = {
@@ -56,22 +42,18 @@ type RegionsResponse = {
   regions: Region[]
 }
 
-function getOverallStatus(ticks?: WebsiteTick[]): "Up" | "Down" | "checking" {
-  const latest = ticks?.[0]
-  if (!latest || latest.status === "Unknown") return "checking"
-  return latest.status
-}
-
 export default function WebsitePage() {
   const router = useRouter()
   const params = useParams()
   const websiteId = params.websiteId as string
 
   const [website, setWebsite] = useState<WebsiteDetail | null>(null)
+  const [monitor, setMonitor] = useState<MonitorSummary | null>(null)
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [timeline, setTimeline] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [incidentActionLoading, setIncidentActionLoading] = useState(false)
+  const [metricsRefreshKey, setMetricsRefreshKey] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [regions, setRegions] = useState<Region[]>([])
   const [selectedRegionId, setSelectedRegionIdState] = useState<string | null>(
@@ -109,11 +91,7 @@ export default function WebsitePage() {
         ),
       ])
 
-      setWebsite({
-        ...statusRes.data.website,
-        ticks: statusRes.data.website.ticks ?? [],
-        stats: statusRes.data.website.stats,
-      })
+      setWebsite(statusRes.data.website)
       setIncidents(incidentsRes.data.incidents ?? [])
       setTimeline(timelineRes.data.events ?? [])
     } catch (err) {
@@ -145,6 +123,7 @@ export default function WebsitePage() {
         headers: { Authorization: token },
       })
       await fetchWebsite()
+      setMetricsRefreshKey((current) => current + 1)
     } catch (err) {
       console.error(err)
       setError("Could not update the incident. Please try again.")
@@ -194,6 +173,7 @@ export default function WebsitePage() {
   useEffect(() => {
     if (selectedRegionId) {
       setLoading(true)
+      setMonitor(null)
       fetchWebsite()
     }
   }, [fetchWebsite, selectedRegionId])
@@ -206,9 +186,8 @@ export default function WebsitePage() {
   const selectedRegionName =
     regions.find((region) => region.id === selectedRegionId)?.name ?? "India"
 
-  const ticks = website?.ticks ?? []
-  const overallStatus = getOverallStatus(ticks)
   const hasOngoingIncident = incidents.some((incident) => incident.ongoing)
+  const overallStatus = monitor?.status ?? "checking"
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0a0a0f] via-[#0d0d15] to-[#0a0a0f] text-white">
@@ -252,26 +231,26 @@ export default function WebsitePage() {
           <LoadingState />
         ) : error ? (
           <ErrorState message={error} onRetry={fetchWebsite} />
-        ) : website ? (
+        ) : website && selectedRegionId ? (
           <>
             <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h1 className="text-3xl font-bold md:text-4xl">Website details</h1>
                 <p className="mt-2 text-sm text-gray-400">
-                  Last 24 hours of uptime checks from {selectedRegionName}.
+                  Monitoring from {selectedRegionName}.
                 </p>
               </div>
 
               <RegionSelect
                 regions={regions}
-                value={selectedRegionId ?? ""}
+                value={selectedRegionId}
                 onChange={handleRegionChange}
                 disabled={loading || regions.length === 0}
               />
             </div>
 
             <div className="mb-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-2xl backdrop-blur-xl">
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
                   <p className="mb-1 text-xs font-medium tracking-wider text-gray-400 uppercase">
                     URL
@@ -294,30 +273,17 @@ export default function WebsitePage() {
                     {hasOngoingIncident ? <OngoingOutageBadge /> : null}
                   </div>
                 </div>
-                <div>
-                  <p className="mb-1 text-xs font-medium tracking-wider text-gray-400 uppercase">
-                    Latest response
-                  </p>
-                  <p className="text-sm text-gray-300">
-                    {typeof ticks[0]?.response_time_ms === "number"
-                      ? `${ticks[0].response_time_ms} ms`
-                      : "—"}
-                  </p>
-                </div>
               </div>
             </div>
 
             <div className="mb-8 rounded-2xl border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-xl">
-              {ticks.length === 0 ? (
-                <div className="px-6 py-20 text-center text-sm text-gray-400">
-                  No checks recorded yet. The worker will populate ticks shortly.
-                </div>
-              ) : (
-                <RecentStatusChecks
-                  ticks={ticks}
-                  stats={website.stats}
-                />
-              )}
+              <WebsiteMetricsPanel
+                websiteId={websiteId}
+                regionId={selectedRegionId}
+                regionName={selectedRegionName}
+                refreshKey={metricsRefreshKey}
+                onMonitorChange={setMonitor}
+              />
             </div>
 
             <div className="mb-8 rounded-2xl border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-xl">
@@ -351,135 +317,7 @@ export default function WebsitePage() {
   )
 }
 
-function RecentStatusChecks({
-  ticks,
-  stats,
-}: {
-  ticks: WebsiteTick[]
-  stats: WebsiteStats
-}) {
-  const timeline = [...ticks].reverse()
-
-  return (
-    <div className="p-4 sm:p-5">
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-white">Recent Status Checks</h2>
-          <p className="text-xs text-gray-400">
-            Last 10 checks shown · stats from last 24 hours
-          </p>
-        </div>
-        <div className="flex items-center gap-3 text-xs text-gray-400">
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-green-400" />
-            Up
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-red-500" />
-            Down
-          </span>
-        </div>
-      </div>
-
-      <div className="mb-4">
-        <p className="mb-2 text-xs text-gray-400">Timeline:</p>
-        <div className="flex flex-wrap items-center gap-2">
-          {timeline.map((tick, i) => (
-            <TimelineDot key={`${tick.createdAt}-${i}`} status={tick.status} />
-          ))}
-        </div>
-      </div>
-
-      {stats.lastOutageAt ? (
-        <p className="mb-4 text-xs text-gray-400">
-          Last outage: {new Date(stats.lastOutageAt).toLocaleString()}
-        </p>
-      ) : null}
-
-      <div className="grid grid-cols-2 gap-3 border-t border-white/5 pt-4 sm:grid-cols-4">
-        <div className="text-center">
-          <p className="text-xl font-bold text-white">
-            {stats.uptimePercentage}%
-          </p>
-          <p className="text-xs text-gray-400">Uptime</p>
-        </div>
-        <div className="text-center">
-          <p className="text-xl font-bold text-white">
-            {stats.avgResponseTimeMs}ms
-          </p>
-          <p className="text-xs text-gray-400">Avg Response</p>
-        </div>
-        <div className="text-center">
-          <p className="text-xl font-bold text-white">{stats.failures}</p>
-          <p className="text-xs text-gray-400">Failures</p>
-        </div>
-        <div className="text-center">
-          <p className="text-xl font-bold text-white">{stats.totalChecks}</p>
-          <p className="text-xs text-gray-400">Total Checks</p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function TimelineDot({ status }: { status: WebsiteTick["status"] }) {
-  if (status === "Up") {
-    return (
-      <div
-        title="Up"
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-green-500/40 bg-green-500/20"
-      >
-        <svg
-          className="h-4 w-4 text-green-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M5 13l4 4L19 7"
-          />
-        </svg>
-      </div>
-    )
-  }
-
-  if (status === "Down") {
-    return (
-      <div
-        title="Down"
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-red-500/40 bg-red-500/20"
-      >
-        <svg
-          className="h-4 w-4 text-red-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M6 18L18 6M6 6l12 12"
-          />
-        </svg>
-      </div>
-    )
-  }
-
-  return (
-    <div
-      title="Unknown"
-      className="flex h-8 w-8 items-center justify-center rounded-full border border-yellow-500/40 bg-yellow-500/20"
-    >
-      <span className="h-2 w-2 rounded-full bg-yellow-400" />
-    </div>
-  )
-}
-
-function StatusBadge({ status }: { status: "Up" | "Down" | "checking" }) {
+function StatusBadge({ status }: { status: MonitorSummary["status"] }) {
   const styles = {
     Up: {
       dot: "bg-green-400",
@@ -497,7 +335,7 @@ function StatusBadge({ status }: { status: "Up" | "Down" | "checking" }) {
       dot: "bg-yellow-500",
       pulse: false,
       pill: "border-yellow-500/30 bg-yellow-500/10 text-yellow-300",
-      label: "checking",
+      label: "Checking",
     },
   }[status]
 

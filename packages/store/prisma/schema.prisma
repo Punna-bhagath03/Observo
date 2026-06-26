@@ -54,6 +54,7 @@ model incident {
   resolved_by             user?     @relation("IncidentResolvedBy", fields: [resolved_by_user_id], references: [id])
 
   @@index([website_id, region_id, started_at])
+  @@index([website_id, region_id, resolved_at])
 }
 
 model website_tick {
@@ -66,6 +67,7 @@ model website_tick {
   website_id          String
   createdAt           DateTime       @default(now())
 
+  @@index([website_id, region_id, createdAt])
 }
 
 enum website_status {
