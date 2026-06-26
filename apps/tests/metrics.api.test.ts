@@ -58,7 +58,23 @@ describe('Metrics API', () => {
     expect(response.data.graph.range).toBe('custom');
     expect(response.data.periodStats.length).toBe(0);
     expect(response.data.customStats).not.toBeNull();
+    expect(response.data.customStats.label).toMatch(/^Since .+ until today$/);
     expect(response.data.customStats.incidents).toBeGreaterThanOrEqual(1);
+  });
+
+  it('returns stats-only period row for custom range', async () => {
+    const from = new Date(Date.now() - 2 * 24 * 60 * 60_000).toISOString();
+    const to = new Date().toISOString();
+
+    const response = await axios.get(
+      `${BACKEND_URL}/status/${websiteId}/metrics?regionId=${REGION_IDS.India}&statsOnly=true&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      { headers: { Authorization: token } }
+    );
+
+    expect(response.data.periodStat).toBeDefined();
+    expect(response.data.periodStat.label).toMatch(/^Since .+ until today$/);
+    expect(response.data.periodStat.availability).toBeGreaterThanOrEqual(0);
+    expect(response.data.graph).toBeUndefined();
   });
 
   it('returns empty graph buckets when no ticks exist in range', async () => {

@@ -46,7 +46,7 @@ export default function IncidentsList({
       ) : null}
 
       {incidents.length === 0 ? (
-        <div className="px-6 py-12 text-center text-sm text-gray-400">
+        <div className="px-4 py-8 text-center text-xs text-gray-400">
           No incidents recorded for this region in the last 20 events.
         </div>
       ) : (
@@ -54,10 +54,10 @@ export default function IncidentsList({
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/5 text-left text-xs font-medium tracking-wider text-gray-400 uppercase">
-                <th className="px-6 py-4">Started</th>
-                <th className="px-6 py-4">Resolved</th>
-                <th className="px-6 py-4">Duration</th>
-                <th className="px-6 py-4">Status</th>
+                <th className="px-4 py-3">Started</th>
+                <th className="px-4 py-3">Resolved</th>
+                <th className="px-4 py-3">Duration</th>
+                <th className="px-4 py-3">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -66,18 +66,18 @@ export default function IncidentsList({
                   key={incident.id}
                   className="border-b border-white/5 last:border-b-0"
                 >
-                  <td className="px-6 py-4 text-sm text-gray-300">
+                  <td className="px-4 py-3 text-xs text-gray-300">
                     {new Date(incident.started_at).toLocaleString()}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-300">
+                  <td className="px-4 py-3 text-xs text-gray-300">
                     {incident.resolved_at
                       ? new Date(incident.resolved_at).toLocaleString()
                       : "—"}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-300">
+                  <td className="px-4 py-3 text-xs text-gray-300">
                     {getDurationLabel(incident)}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3">
                     <IncidentStatusCell incident={incident} />
                   </td>
                 </tr>
@@ -107,14 +107,14 @@ function ActiveIncidentPanel({
     <div
       className={
         acknowledged
-          ? "border-b border-yellow-500/25 bg-yellow-500/10 px-6 py-5"
-          : "border-b border-red-500/20 bg-red-500/5 px-6 py-5"
+          ? "border-b border-yellow-500/25 bg-yellow-500/10 px-4 py-3"
+          : "border-b border-red-500/20 bg-red-500/5 px-4 py-3"
       }
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p
-            className={`text-sm font-semibold ${acknowledged ? "text-yellow-300" : "text-red-300"}`}
+            className={`text-xs font-semibold ${acknowledged ? "text-yellow-300" : "text-red-300"}`}
           >
             Incident currently open
           </p>
@@ -166,6 +166,8 @@ function AckBadge() {
   )
 }
 
+export { AckBadge }
+
 function ActionButton({
   label,
   onClick,
@@ -190,7 +192,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={loading}
-      className={`rounded-xl border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${styles}`}
+      className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${styles}`}
     >
       {label}
     </button>

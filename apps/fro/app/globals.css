@@ -120,10 +120,12 @@
   * {
     @apply border-border outline-ring/50;
     }
-  body {
-    @apply bg-background text-foreground;
-    }
   html {
     @apply font-sans;
+    font-size: calc(13px * 85 / 80);
+    }
+  body {
+    @apply bg-background text-foreground;
+    line-height: 1.45;
     }
 }

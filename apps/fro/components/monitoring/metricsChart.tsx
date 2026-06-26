@@ -5,13 +5,19 @@ import uPlot from "uplot"
 import "uplot/dist/uPlot.min.css"
 
 import type { GraphData, MonitorSummary } from "@/lib/metrics"
+import {
+  formatChartRangeLabel,
+  formatXAxisLabel,
+  getXAxisIncrements,
+  getXAxisLabelSpace,
+} from "@/lib/chartAxis"
 
 type MetricsChartProps = {
   graph: GraphData
   monitorStatus?: MonitorSummary["status"]
 }
 
-const CHART_HEIGHT = 280
+const CHART_HEIGHT = 260
 
 const COLORS = {
   response: "#22d3ee",
@@ -49,19 +55,11 @@ function buildChartSeries(graph: GraphData): ChartSeries {
 }
 
 function hasChartData(series: ChartSeries): boolean {
-  return series.avgMs.some((value) => value !== null) ||
+  return (
+    series.avgMs.some((value) => value !== null) ||
     series.availabilityUp.some((value) => value !== null) ||
     series.availabilityDown.some((value) => value !== null)
-}
-
-function formatAxisTime(value: number): string {
-  const date = new Date(value * 1000)
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })
+  )
 }
 
 function responseAxisRange(
@@ -90,6 +88,10 @@ export default function MetricsChart({
   const [width, setWidth] = useState(0)
   const series = useMemo(() => buildChartSeries(graph), [graph])
   const showChart = hasChartData(series)
+  const spanMs = useMemo(
+    () => new Date(graph.to).getTime() - new Date(graph.from).getTime(),
+    [graph.from, graph.to]
+  )
 
   useEffect(() => {
     if (!showChart) {
@@ -131,10 +133,13 @@ export default function MetricsChart({
       series.availabilityDown,
     ]
 
+    const labelSpace = getXAxisLabelSpace(width)
+
     const plot = new uPlot(
       {
         width,
         height: CHART_HEIGHT,
+        padding: [12, 8, 8, 0],
         cursor: {
           drag: { x: false, y: false },
         },
@@ -152,16 +157,26 @@ export default function MetricsChart({
             stroke: "#6b7280",
             grid: { stroke: "rgba(255,255,255,0.06)" },
             ticks: { stroke: "rgba(255,255,255,0.12)" },
-            values: (_self, ticks) => ticks.map(formatAxisTime),
+            font: "11px system-ui, sans-serif",
+            gap: 6,
+            size: 46,
+            space: labelSpace,
+            incrs: getXAxisIncrements(graph.range),
+            values: (_self, ticks) =>
+              ticks.map((tick) =>
+                formatXAxisLabel(tick, graph.range, spanMs)
+              ),
           },
           {
             stroke: "#6b7280",
             grid: { stroke: "rgba(255,255,255,0.06)" },
             ticks: { stroke: "rgba(255,255,255,0.12)" },
+            font: "11px system-ui, sans-serif",
             label: "Response (ms)",
-            labelSize: 14,
-            labelGap: 8,
-            size: 48,
+            labelSize: 11,
+            labelGap: 6,
+            size: 44,
+            gap: 4,
           },
           {
             stroke: "#6b7280",
@@ -169,10 +184,12 @@ export default function MetricsChart({
             scale: "y2",
             grid: { show: false },
             ticks: { stroke: "rgba(255,255,255,0.12)" },
+            font: "11px system-ui, sans-serif",
             label: "Availability (%)",
-            labelSize: 14,
-            labelGap: 8,
-            size: 48,
+            labelSize: 11,
+            labelGap: 6,
+            size: 44,
+            gap: 4,
           },
         ],
         series: [
@@ -212,19 +229,19 @@ export default function MetricsChart({
       plot.destroy()
       plotRef.current = null
     }
-  }, [series, showChart, width])
+  }, [graph.range, series, showChart, spanMs, width])
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400">
         <span>
-          {new Date(graph.from).toLocaleString()} –{" "}
-          {new Date(graph.to).toLocaleString()}
+          {formatChartRangeLabel(graph.from)} –{" "}
+          {formatChartRangeLabel(graph.to)}
         </span>
         <span>Bucket size: {formatBucketMs(graph.bucketMs)}</span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 px-1 text-xs text-gray-400">
+      <div className="flex flex-wrap items-center gap-3 px-0.5 text-[12px] text-gray-400">
         <span className="inline-flex items-center gap-1.5">
           <span
             className="h-2 w-2 rounded-full"
@@ -271,7 +288,7 @@ function EmptyChartState({
       : "No check data in this time range. Try a wider range like Week or Month, or wait for more checks."
 
   return (
-    <div className="flex h-[280px] flex-col items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/20 px-6 text-center">
+    <div className="flex h-[260px] flex-col items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/20 px-4 text-center">
       <div className="mb-3 flex items-center gap-3">
         <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
           <span
@@ -288,7 +305,7 @@ function EmptyChartState({
           Down
         </span>
       </div>
-      <p className="max-w-md text-sm text-gray-400">{message}</p>
+      <p className="max-w-md text-xs text-gray-400">{message}</p>
     </div>
   )
 }

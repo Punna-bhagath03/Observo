@@ -33,8 +33,8 @@ export function formatDuration(ms: number): string {
   return `${days}d ${hours % 24}h`
 }
 
-export function formatAvailability(value: number): string {
-  return `${value.toFixed(2).replace(/\.?0+$/, "")}%`
+export function formatPeriodAvailability(value: number): string {
+  return `${value.toFixed(4)}%`
 }
 
 export function formatTimelineDate(iso: string): string {

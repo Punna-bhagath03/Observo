@@ -64,7 +64,7 @@ export default function IncidentTimeline({
 }) {
   if (events.length === 0) {
     return (
-      <div className="px-6 py-12 text-center text-sm text-gray-400">
+      <div className="px-4 py-8 text-center text-xs text-gray-400">
         No timeline events yet.
       </div>
     )
@@ -87,7 +87,7 @@ export default function IncidentTimeline({
             <div className="min-w-0 flex-1 pt-0.5">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="min-w-0">
-                  <p className="text-sm text-gray-200">{event.title}</p>
+                  <p className="text-xs text-gray-200">{event.title}</p>
                   {event.detail ? (
                     <p className="mt-0.5 truncate text-xs text-gray-500">
                       {event.detail}
@@ -115,7 +115,7 @@ function TimelineIcon({ event }: { event: TimelineEvent }) {
   if (style.glyph === "user" && event.username) {
     return (
       <div
-        className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${style.ring} ${style.icon}`}
+        className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[12px] font-semibold ${style.ring} ${style.icon}`}
       >
         {getInitials(event.username)}
       </div>

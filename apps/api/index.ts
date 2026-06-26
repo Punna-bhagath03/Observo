@@ -18,6 +18,8 @@ import {
 } from 'store/timeline';
 import {
   buildWebsiteMetrics,
+  computePeriodStats,
+  formatCustomPeriodLabel,
   parseMetricsQuery,
   resolveStreakStartAt,
 } from 'store/metrics';
@@ -299,6 +301,36 @@ app.get('/status/:websiteId/metrics', authMiddleware, async (req, res) => {
     return;
   }
 
+  if (req.query.statsOnly === 'true') {
+    if (parsed.includePresetPeriodStats) {
+      res.status(403).send('');
+      return;
+    }
+
+    const incidents = await prismaClient.incident.findMany({
+      where: {
+        website_id: website.id,
+        region_id: regionId,
+      },
+      select: {
+        started_at: true,
+        resolved_at: true,
+      },
+    });
+
+    const { from, to } = parsed.window;
+
+    res.json({
+      periodStat: computePeriodStats(
+        formatCustomPeriodLabel(from, to),
+        from,
+        to,
+        incidents
+      ),
+    });
+    return;
+  }
+
   const [windowTicks, latestTick, incidents] = await Promise.all([
     prismaClient.website_tick.findMany({
       where: {
@@ -409,9 +441,6 @@ app.get('/status/:websiteId/metrics', authMiddleware, async (req, res) => {
       websiteAddedAt: website.time_added,
       window: parsed.window,
       includePresetPeriodStats: parsed.includePresetPeriodStats,
-      customLabel: parsed.includePresetPeriodStats
-        ? undefined
-        : 'Custom range',
     })
   );
 });

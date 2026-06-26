@@ -8,6 +8,7 @@ import {
   computeMonitorSummaryFromState,
   resolveStreakStartAt,
   computePeriodStats,
+  formatCustomPeriodLabel,
   getBucketMs,
   incidentOverlapsPeriod,
   parseMetricsQuery,
@@ -211,6 +212,28 @@ describe('metrics monitor summary', () => {
   });
 });
 
+describe('metrics period labels', () => {
+  it('formats custom labels as since/until today', () => {
+    const from = new Date(2026, 5, 18);
+    const to = new Date(2026, 5, 26, 15, 0, 0);
+    const label = formatCustomPeriodLabel(from, to, to);
+
+    expect(label).toBe('Since 18 Jun 2026 until today');
+  });
+
+  it('formats historical custom labels with an end date', () => {
+    const from = new Date(2026, 5, 1);
+    const to = new Date(2026, 5, 10);
+    const label = formatCustomPeriodLabel(
+      from,
+      to,
+      new Date(2026, 5, 25)
+    );
+
+    expect(label).toBe('Since 1 Jun 2026 until 10 Jun 2026');
+  });
+});
+
 describe('buildWebsiteMetrics', () => {
   it('returns preset period stats for range mode', () => {
     const metrics = buildWebsiteMetrics({
@@ -253,6 +276,7 @@ describe('buildWebsiteMetrics', () => {
 
     expect(metrics.graph.range).toBe('custom');
     expect(metrics.periodStats.length).toBe(0);
+    expect(metrics.customStats?.label).toMatch(/^Since .+ until (today|\d{1,2} \w{3} \d{4})$/);
     expect(metrics.customStats?.incidents).toBe(1);
     expect(metrics.customStats?.downtimeMs).toBe(60 * 60_000);
   });

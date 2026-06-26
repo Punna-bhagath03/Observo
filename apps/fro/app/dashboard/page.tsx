@@ -1,13 +1,12 @@
 "use client"
 import DashboardPage from "@/components/ui/dashboard"
-import { useRouter } from "next/navigation"
+import { useSignOut } from "@/hooks/useAuthToken"
 
 export default function () {
-  const router = useRouter();
-  return <div>
-      <DashboardPage onSignOut={()=>{
-        localStorage.removeItem("token")
-        router.push("/signin")
-      }}/>
+  const handleSignOut = useSignOut()
+  return (
+    <div>
+      <DashboardPage onSignOut={handleSignOut} />
     </div>
-  }
+  )
+}

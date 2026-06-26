@@ -353,6 +353,36 @@ function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
+export function formatCustomPeriodLabel(
+  from: Date,
+  to: Date,
+  now = new Date()
+): string {
+  const fromLabel = from.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const endsToday =
+    to.getTime() >= now.getTime() - 60_000 ||
+    (to.getFullYear() === now.getFullYear() &&
+      to.getMonth() === now.getMonth() &&
+      to.getDate() === now.getDate());
+
+  if (endsToday) {
+    return `Since ${fromLabel} until today`;
+  }
+
+  const toLabel = to.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  return `Since ${fromLabel} until ${toLabel}`;
+}
+
 export function buildPresetPeriodStats(
   incidents: IncidentInput[],
   websiteAddedAt: Date,
@@ -443,7 +473,8 @@ export function buildWebsiteMetrics(input: {
     customStats: input.includePresetPeriodStats
       ? null
       : computePeriodStats(
-          input.customLabel ?? 'Custom range',
+          input.customLabel ??
+            formatCustomPeriodLabel(from, to, now),
           from,
           to,
           input.incidents,
