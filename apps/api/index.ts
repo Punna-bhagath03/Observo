@@ -29,7 +29,12 @@ import {
   resolveMonitorStreakStartAt,
   slugBaseFromUrl,
 } from 'store/statusPage';
-import { AuthInput } from './types';
+import {
+  getNotificationSettings,
+  upsertEmailNotificationSettings,
+} from 'store/notifications';
+import { publishIncidentEvent } from 'store/publishIncidentEvent';
+import { AuthInput, NotificationSettingsInput } from './types';
 import { authMiddleware } from './middleware';
 import { buildWebsiteStats, getStatsWindowStart } from './aggregation';
 
@@ -292,18 +297,26 @@ app.post(
   '/status/:websiteId/incidents/:incidentId/acknowledge',
   authMiddleware,
   async (req, res) => {
-    const incident = await acknowledgeIncident(
+    const result = await acknowledgeIncident(
       req.params.incidentId,
       req.params.websiteId,
       req.userId!
     );
 
-    if (!incident) {
+    if (!result) {
       res.status(409).json({ message: 'Not found' });
       return;
     }
 
-    res.json({ incident: formatIncident(incident) });
+    if (result.isNewAcknowledgement) {
+      await publishIncidentEvent({
+        type: 'incident.acknowledged',
+        incidentId: result.incident.id,
+        source: 'api',
+      });
+    }
+
+    res.json({ incident: formatIncident(result.incident) });
   }
 );
 
@@ -321,6 +334,12 @@ app.post(
       res.status(409).json({ message: 'Not found' });
       return;
     }
+
+    await publishIncidentEvent({
+      type: 'incident.resolved',
+      incidentId: incident.id,
+      source: 'api',
+    });
 
     res.json({ incident: formatIncident(incident) });
   }
@@ -503,6 +522,27 @@ app.get('/status/:websiteId/metrics', authMiddleware, async (req, res) => {
       includePresetPeriodStats: parsed.includePresetPeriodStats,
     })
   );
+});
+
+app.get('/notifications/settings', authMiddleware, async (req, res) => {
+  const settings = await getNotificationSettings(prismaClient, req.userId!);
+  res.json(settings);
+});
+
+app.patch('/notifications/settings', authMiddleware, async (req, res) => {
+  const parsed = NotificationSettingsInput.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(403).send('');
+    return;
+  }
+
+  await upsertEmailNotificationSettings(
+    prismaClient,
+    req.userId!,
+    parsed.data
+  );
+
+  res.json(await getNotificationSettings(prismaClient, req.userId!));
 });
 
 app.post('/user/signup', async (req, res) => {

@@ -1,4 +1,7 @@
 import { prismaClient } from './index';
+import type { IncidentAction } from './events';
+
+export type { IncidentAction };
 
 export const CONSECUTIVE_DOWNS_TO_OPEN = 2;
 
@@ -65,10 +68,10 @@ export async function acknowledgeIncident(
   }
 
   if (incident.acknowledged_at) {
-    return incident;
+    return { incident, isNewAcknowledgement: false };
   }
 
-  return prismaClient.incident.update({
+  const updated = await prismaClient.incident.update({
     where: { id: incident.id },
     data: {
       acknowledged_at: new Date(),
@@ -76,6 +79,8 @@ export async function acknowledgeIncident(
     },
     include: incidentInclude,
   });
+
+  return { incident: updated, isNewAcknowledgement: true };
 }
 
 export async function resolveIncidentManually(
@@ -98,7 +103,7 @@ export async function resolveIncidentManually(
   });
 }
 
-export async function handleIncident(tick: TickInput) {
+export async function handleIncident(tick: TickInput): Promise<IncidentAction> {
   const openIncident = await prismaClient.incident.findFirst({
     where: {
       website_id: tick.website_id,
@@ -113,12 +118,13 @@ export async function handleIncident(tick: TickInput) {
         where: { id: openIncident.id },
         data: { resolved_at: tick.createdAt },
       });
+      return { type: 'resolved', incidentId: openIncident.id };
     }
-    return;
+    return { type: 'none' };
   }
 
   if (tick.status !== 'Down' || openIncident) {
-    return;
+    return { type: 'none' };
   }
 
   const recentTicks = await prismaClient.website_tick.findMany({
@@ -135,14 +141,16 @@ export async function handleIncident(tick: TickInput) {
     recentTicks.every((recentTick) => recentTick.status === 'Down');
 
   if (!allDown) {
-    return;
+    return { type: 'none' };
   }
 
-  await prismaClient.incident.create({
+  const incident = await prismaClient.incident.create({
     data: {
       website_id: tick.website_id,
       region_id: tick.region_id,
       started_at: recentTicks[recentTicks.length - 1]!.createdAt,
     },
   });
+
+  return { type: 'opened', incidentId: incident.id };
 }

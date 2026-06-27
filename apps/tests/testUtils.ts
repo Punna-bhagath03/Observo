@@ -93,6 +93,28 @@ export async function cleanupTestUsers() {
   const { prismaClient } = await import('store/client');
   const userIds = [...testUserIds];
 
+  await prismaClient.notification_delivery.deleteMany({
+    where: {
+      channel: {
+        user_id: { in: userIds },
+      },
+    },
+  });
+
+  await prismaClient.notification_rule.deleteMany({
+    where: {
+      channel: {
+        user_id: { in: userIds },
+      },
+    },
+  });
+
+  await prismaClient.notification_channel.deleteMany({
+    where: {
+      user_id: { in: userIds },
+    },
+  });
+
   await prismaClient.website_tick.deleteMany({
     where: {
       website: {

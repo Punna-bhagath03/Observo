@@ -13,12 +13,13 @@ datasource db {
 }
 
 model user {
-  id                     String     @id       @default(uuid())
+  id                     String                 @id       @default(uuid())
   username               String
   password               String
   websites               website[]
-  acknowledged_incidents incident[] @relation("IncidentAcknowledgedBy")
-  resolved_incidents     incident[] @relation("IncidentResolvedBy")
+  notification_channels  notification_channel[]
+  acknowledged_incidents incident[]             @relation("IncidentAcknowledgedBy")
+  resolved_incidents     incident[]             @relation("IncidentResolvedBy")
 }
 
 model website {
@@ -41,7 +42,7 @@ model region {
 }
 
 model incident {
-  id                      String    @id @default(uuid())
+  id                      String                  @id @default(uuid())
   website_id              String
   region_id               String
   started_at              DateTime
@@ -49,10 +50,11 @@ model incident {
   acknowledged_at         DateTime?
   acknowledged_by_user_id String?
   resolved_by_user_id     String?
-  website                 website   @relation(fields: [website_id], references: [id])
-  region                  region    @relation(fields: [region_id], references: [id])
-  acknowledged_by         user?     @relation("IncidentAcknowledgedBy", fields: [acknowledged_by_user_id], references: [id])
-  resolved_by             user?     @relation("IncidentResolvedBy", fields: [resolved_by_user_id], references: [id])
+  website                 website                 @relation(fields: [website_id], references: [id])
+  region                  region                  @relation(fields: [region_id], references: [id])
+  acknowledged_by         user?                   @relation("IncidentAcknowledgedBy", fields: [acknowledged_by_user_id], references: [id])
+  resolved_by             user?                   @relation("IncidentResolvedBy", fields: [resolved_by_user_id], references: [id])
+  notification_deliveries notification_delivery[]
 
   @@index([website_id, region_id, started_at])
   @@index([website_id, region_id, resolved_at])
@@ -75,4 +77,52 @@ enum website_status {
   Up
   Down
   Unknown
+}
+
+enum notification_channel_type {
+  email
+}
+
+enum incident_event_type {
+  incident_opened
+  incident_acknowledged
+  incident_resolved
+}
+
+model notification_channel {
+  id         String                    @id @default(uuid())
+  user_id    String
+  type       notification_channel_type
+  label      String                    @default("Email")
+  config     Json
+  enabled    Boolean                   @default(true)
+  user       user                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  rules      notification_rule[]
+  deliveries notification_delivery[]
+
+  @@index([user_id])
+}
+
+model notification_rule {
+  id         String                  @id @default(uuid())
+  channel_id String
+  event_type incident_event_type
+  enabled    Boolean                 @default(true)
+  channel    notification_channel    @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+
+  @@unique([channel_id, event_type])
+}
+
+model notification_delivery {
+  id          String               @id @default(uuid())
+  channel_id  String
+  incident_id String
+  event_type  incident_event_type
+  status      String
+  error       String?
+  created_at  DateTime             @default(now())
+  channel     notification_channel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  incident    incident             @relation(fields: [incident_id], references: [id], onDelete: Cascade)
+
+  @@unique([channel_id, incident_id, event_type])
 }

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { ensureConsumerGroup, xAckBulk, xReadGroup } from 'redisstream/client';
 import { handleIncident } from 'store/incidents';
+import { publishIncidentAction } from 'store/publishIncidentEvent';
 import { prismaClient } from 'store/client';
 
 const REGION_ID = process.env.REGION_ID!;
@@ -48,7 +49,8 @@ async function saveTick(
     },
   });
 
-  await handleIncident(tick);
+  const action = await handleIncident(tick);
+  await publishIncidentAction(action, 'monitor');
 }
 
 async function fetchWebsite(url: string, websiteId: string) {

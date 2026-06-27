@@ -13,3 +13,7 @@ export function isIncidentsPath(pathname: string): boolean {
 export function isMonitoringPath(pathname: string): boolean {
   return pathname === "/monitoring" || pathname.endsWith("/monitoring")
 }
+
+export function isNotificationsPath(pathname: string): boolean {
+  return pathname.startsWith("/settings/notifications")
+}
