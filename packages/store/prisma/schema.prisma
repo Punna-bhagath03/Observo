@@ -81,6 +81,7 @@ enum website_status {
 
 enum notification_channel_type {
   email
+  webhook
 }
 
 enum incident_event_type {

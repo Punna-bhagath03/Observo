@@ -32,6 +32,8 @@ import {
 import {
   getNotificationSettings,
   upsertEmailNotificationSettings,
+  upsertWebhookNotificationSettings,
+  disableWebhookNotificationSettings,
 } from 'store/notifications';
 import { publishIncidentEvent } from 'store/publishIncidentEvent';
 import { AuthInput, NotificationSettingsInput } from './types';
@@ -536,13 +538,36 @@ app.patch('/notifications/settings', authMiddleware, async (req, res) => {
     return;
   }
 
-  await upsertEmailNotificationSettings(
-    prismaClient,
-    req.userId!,
-    parsed.data
-  );
+  if (parsed.data.email) {
+    await upsertEmailNotificationSettings(
+      prismaClient,
+      req.userId!,
+      parsed.data.email
+    );
+  }
 
-  res.json(await getNotificationSettings(prismaClient, req.userId!));
+  let webhookSecret: string | undefined;
+
+  if (parsed.data.disableWebhook) {
+    await disableWebhookNotificationSettings(prismaClient, req.userId!);
+  }
+
+  if (parsed.data.webhook) {
+    try {
+      const result = await upsertWebhookNotificationSettings(
+        prismaClient,
+        req.userId!,
+        parsed.data.webhook
+      );
+      webhookSecret = result.secret;
+    } catch {
+      res.status(403).send('');
+      return;
+    }
+  }
+
+  const settings = await getNotificationSettings(prismaClient, req.userId!);
+  res.json(webhookSecret ? { ...settings, webhookSecret } : settings);
 });
 
 app.post('/user/signup', async (req, res) => {

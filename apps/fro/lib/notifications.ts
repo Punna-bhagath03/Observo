@@ -11,9 +11,27 @@ export const INCIDENT_EVENT_TYPES: IncidentEventType[] = [
   "incident.resolved",
 ]
 
+export type ChannelRules = Record<IncidentEventType, boolean>
+
+export type EmailSettings = {
+  address: string | null
+  rules: ChannelRules
+}
+
+export type WebhookSettings = {
+  url: string | null
+  enabled: boolean
+  hasSecret: boolean
+  rules: ChannelRules
+}
+
 export type NotificationSettings = {
-  email: string | null
-  rules: Record<IncidentEventType, boolean>
+  email: EmailSettings
+  webhook: WebhookSettings
+}
+
+export type SaveNotificationSettingsResponse = NotificationSettings & {
+  webhookSecret?: string
 }
 
 export const INCIDENT_EVENT_LABELS: Record<IncidentEventType, string> = {
@@ -38,8 +56,16 @@ export async function fetchNotificationSettings(
 
 export async function saveNotificationSettings(
   token: string,
-  settings: { email: string; rules: Record<IncidentEventType, boolean> }
-): Promise<NotificationSettings> {
+  settings: {
+    email?: { address: string; rules: ChannelRules }
+    webhook?: {
+      url: string
+      rules: ChannelRules
+      regenerateSecret?: boolean
+    }
+    disableWebhook?: boolean
+  }
+): Promise<SaveNotificationSettingsResponse> {
   const response = await fetch(`${BACKEND_URL}/notifications/settings`, {
     method: "PATCH",
     headers: {

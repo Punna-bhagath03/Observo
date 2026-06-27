@@ -25,6 +25,8 @@
     "./events": "./events.ts",
     "./publishIncidentEvent": "./publishIncidentEvent.ts",
     "./notifications": "./notifications.ts",
+    "./webhookSignature": "./webhookSignature.ts",
+    "./webhookUrl": "./webhookUrl.ts",
     "./cleanup-dev": "./cleanup-dev.ts"
   },
   "peerDependencies": {

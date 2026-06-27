@@ -4,6 +4,7 @@ import { processIncidentEvent } from 'store/notifications';
 import type { StreamIncidentMessage } from 'redisstream/incident-events';
 
 import { sendEmail } from './senders/email';
+import { sendWebhook } from './senders/webhook';
 
 function toIncidentEvent(message: StreamIncidentMessage['message']): IncidentEvent | null {
   const type = parseIncidentEventType(message.type);
@@ -28,5 +29,8 @@ export async function handleIncidentStreamMessage(
     return;
   }
 
-  await processIncidentEvent(prismaClient, event, sendEmail);
+  await processIncidentEvent(prismaClient, event, {
+    email: sendEmail,
+    webhook: sendWebhook,
+  });
 }
