@@ -20,6 +20,8 @@
     "./incidents": "./incidents.ts",
     "./timeline": "./timeline.ts",
     "./metrics": "./metrics.ts",
+    "./stats": "./stats.ts",
+    "./statusPage": "./statusPage.ts",
     "./cleanup-dev": "./cleanup-dev.ts"
   },
   "peerDependencies": {

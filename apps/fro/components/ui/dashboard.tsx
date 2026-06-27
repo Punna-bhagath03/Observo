@@ -4,6 +4,7 @@ import axios from "axios"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
+import StatusPageControls from "@/components/shared/statusPageControls"
 import RegionToolbar from "@/components/shared/regionToolbar"
 import ClickableTableRow from "@/components/shared/clickableTableRow"
 import { ErrorState } from "@/components/shared/pageStates"
@@ -30,6 +31,8 @@ type Website = {
   url: string
   user_id: string
   time_added: string
+  status_page_enabled: boolean
+  status_page_slug: string | null
   ticks?: WebsiteTick[]
   stats: WebsiteStats
   ongoingIncident: boolean
@@ -227,7 +230,7 @@ function WebsitesTable({ websites }: { websites: Website[] }) {
             <th className="px-4 py-3">Availability (24h)</th>
             <th className="px-4 py-3">Response time</th>
             <th className="px-4 py-3">Last checked</th>
-            <th className="px-4 py-3">Open site</th>
+            <th className="px-4 py-3">Status page</th>
           </tr>
         </thead>
         <tbody>
@@ -263,29 +266,11 @@ function WebsitesTable({ websites }: { websites: Website[] }) {
                   {lastChecked ? new Date(lastChecked).toLocaleTimeString() : "—"}
                 </td>
                 <td className="px-4 py-3">
-                  <a
-                    href={website.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    data-row-action
-                    aria-label={`Open ${website.url} in a new tab`}
-                    onClick={(event) => event.stopPropagation()}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
-                  >
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                      />
-                    </svg>
-                  </a>
+                  <StatusPageControls
+                    websiteId={website.id}
+                    enabled={website.status_page_enabled}
+                    slug={website.status_page_slug}
+                  />
                 </td>
               </ClickableTableRow>
             )

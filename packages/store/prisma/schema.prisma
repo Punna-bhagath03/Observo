@@ -22,14 +22,15 @@ model user {
 }
 
 model website {
-  id            String      @id     @default(uuid())
-  url           String      
-  user_id       String
-  time_added    DateTime
-  ticks         website_tick[]
-  incidents     incident[]
-  user          user        @relation(fields: [user_id], references: [id])
-
+  id                   String      @id     @default(uuid())
+  url                  String
+  user_id              String
+  time_added           DateTime
+  status_page_enabled  Boolean     @default(false)
+  status_page_slug     String?     @unique
+  ticks                website_tick[]
+  incidents            incident[]
+  user                 user        @relation(fields: [user_id], references: [id])
 }
 
 model region {

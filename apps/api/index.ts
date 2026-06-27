@@ -21,11 +21,17 @@ import {
   computePeriodStats,
   formatCustomPeriodLabel,
   parseMetricsQuery,
-  resolveStreakStartAt,
 } from 'store/metrics';
+import {
+  generateUniqueSlug,
+  isValidStatusPageSlug,
+  loadPublicStatusPage,
+  resolveMonitorStreakStartAt,
+  slugBaseFromUrl,
+} from 'store/statusPage';
 import { AuthInput } from './types';
 import { authMiddleware } from './middleware';
-import { computeStats, buildWebsiteStats, getStatsWindowStart } from './aggregation';
+import { buildWebsiteStats, getStatsWindowStart } from './aggregation';
 
 async function resolveRegionId(
   regionId: string | undefined
@@ -45,6 +51,108 @@ async function resolveRegionId(
 
 app.use(express.json());
 app.use(cors());
+
+app.get('/public/status/:slug', async (req, res) => {
+  const regionId = await resolveRegionId(
+    typeof req.query.regionId === 'string' ? req.query.regionId : undefined
+  );
+  if (!regionId) {
+    res.status(404).json({ message: 'Not found' });
+    return;
+  }
+
+  const page = await loadPublicStatusPage(
+    prismaClient,
+    req.params.slug as string,
+    regionId
+  );
+
+  if (!page) {
+    res.status(404).json({ message: 'Not found' });
+    return;
+  }
+
+  res.json(page);
+});
+
+app.patch('/website/:id/status-page', authMiddleware, async (req, res) => {
+  const website = await prismaClient.website.findFirst({
+    where: {
+      id: req.params.id,
+      user_id: req.userId!,
+    },
+  });
+
+  if (!website) {
+    res.status(409).json({ message: 'Not found' });
+    return;
+  }
+
+  const enabled = req.body.enabled;
+  const slugInput =
+    typeof req.body.slug === 'string'
+      ? req.body.slug.trim().toLowerCase()
+      : undefined;
+
+  if (typeof enabled !== 'boolean') {
+    res.status(403).send('');
+    return;
+  }
+
+  if (!enabled) {
+    const updated = await prismaClient.website.update({
+      where: { id: website.id },
+      data: { status_page_enabled: false },
+      select: {
+        status_page_enabled: true,
+        status_page_slug: true,
+      },
+    });
+    res.json(updated);
+    return;
+  }
+
+  let slug = slugInput ?? website.status_page_slug;
+
+  if (!slug) {
+    slug = await generateUniqueSlug(
+      prismaClient,
+      slugBaseFromUrl(website.url)
+    );
+  }
+
+  if (!isValidStatusPageSlug(slug)) {
+    res.status(403).json({ message: 'Invalid slug' });
+    return;
+  }
+
+  const taken = await prismaClient.website.findFirst({
+    where: {
+      status_page_slug: slug,
+      id: { not: website.id },
+    },
+    select: { id: true },
+  });
+
+  if (taken) {
+    res.status(409).json({ message: 'Slug already taken' });
+    return;
+  }
+
+  const updated = await prismaClient.website.update({
+    where: { id: website.id },
+    data: {
+      status_page_enabled: true,
+      status_page_slug: slug,
+    },
+    select: {
+      status_page_enabled: true,
+      status_page_slug: true,
+    },
+  });
+
+  res.json(updated);
+});
 
 app.get('/regions', async (req, res) => {
   const regions = await prismaClient.region.findMany({
@@ -375,61 +483,13 @@ app.get('/status/:websiteId/metrics', authMiddleware, async (req, res) => {
   let monitorStreakStartAt: Date | null = null;
 
   if (latestTick?.status === 'Up') {
-    const lastDown = await prismaClient.website_tick.findFirst({
-      where: {
-        website_id: website.id,
-        region_id: regionId,
-        status: 'Down',
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        status: true,
-        response_time_ms: true,
-        createdAt: true,
-      },
-    });
-
-    const [firstUpAfterLastDown, firstUpEver] = await Promise.all([
-      lastDown
-        ? prismaClient.website_tick.findFirst({
-            where: {
-              website_id: website.id,
-              region_id: regionId,
-              status: 'Up',
-              createdAt: { gt: lastDown.createdAt },
-            },
-            orderBy: { createdAt: 'asc' },
-            select: {
-              status: true,
-              response_time_ms: true,
-              createdAt: true,
-            },
-          })
-        : Promise.resolve(null),
-      lastDown
-        ? Promise.resolve(null)
-        : prismaClient.website_tick.findFirst({
-            where: {
-              website_id: website.id,
-              region_id: regionId,
-              status: 'Up',
-            },
-            orderBy: { createdAt: 'asc' },
-            select: {
-              status: true,
-              response_time_ms: true,
-              createdAt: true,
-            },
-          }),
-    ]);
-
-    monitorStreakStartAt = resolveStreakStartAt({
-      latest: latestTick,
-      lastDown,
-      firstUpAfterLastDown,
-      firstUpEver,
-      websiteAddedAt: website.time_added,
-    });
+    monitorStreakStartAt = await resolveMonitorStreakStartAt(
+      prismaClient,
+      website.id,
+      regionId,
+      website.time_added,
+      latestTick
+    );
   }
 
   res.json(
@@ -592,6 +652,8 @@ app.get('/websites', authMiddleware, async (req, res) => {
         url: website.url,
         user_id: website.user_id,
         time_added: website.time_added,
+        status_page_enabled: website.status_page_enabled,
+        status_page_slug: website.status_page_slug,
         ticks: websiteTicks.slice(0, 1),
         stats: buildWebsiteStats(
           websiteTicks,
