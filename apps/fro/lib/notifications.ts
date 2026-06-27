@@ -15,6 +15,7 @@ export type ChannelRules = Record<IncidentEventType, boolean>
 
 export type EmailSettings = {
   address: string | null
+  enabled: boolean
   rules: ChannelRules
 }
 
@@ -57,12 +58,13 @@ export async function fetchNotificationSettings(
 export async function saveNotificationSettings(
   token: string,
   settings: {
-    email?: { address: string; rules: ChannelRules }
+    email?: { address: string; rules: ChannelRules; enabled?: boolean }
     webhook?: {
       url: string
       rules: ChannelRules
       regenerateSecret?: boolean
     }
+    disableEmail?: boolean
     disableWebhook?: boolean
   }
 ): Promise<SaveNotificationSettingsResponse> {

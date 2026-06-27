@@ -114,6 +114,59 @@ describe('processIncidentEvent', () => {
     expect(deliveries[0]?.status).toBe('sent');
   });
 
+  it('does not send email when the email channel is disabled', async () => {
+    const { prismaClient } = await import('store/client');
+    const { createUser } = await import('./testUtils');
+    const { REGION_IDS } = await import('./config');
+
+    const user = await createUser();
+    const website = await prismaClient.website.create({
+      data: {
+        url: 'https://disabled-email.example.com',
+        user_id: user.id,
+        time_added: new Date(),
+      },
+    });
+    const region = await prismaClient.region.findFirst();
+    const incident = await prismaClient.incident.create({
+      data: {
+        website_id: website.id,
+        region_id: region!.id,
+        started_at: new Date('2026-06-26T12:00:00Z'),
+      },
+    });
+
+    await prismaClient.notification_channel.create({
+      data: {
+        user_id: user.id,
+        type: 'email',
+        enabled: false,
+        config: { email: 'owner@example.com' },
+        rules: {
+          create: [{ event_type: 'incident_opened', enabled: true }],
+        },
+      },
+    });
+
+    const event: IncidentEvent = {
+      id: crypto.randomUUID(),
+      type: 'incident.opened',
+      incidentId: incident.id,
+      source: 'monitor',
+      occurredAt: new Date('2026-06-26T12:06:00Z').toISOString(),
+    };
+
+    const sent: string[] = [];
+    await processIncidentEvent(prismaClient, event, {
+      email: async (input) => {
+        sent.push(input.to);
+      },
+      webhook: async () => {},
+    });
+
+    expect(sent).toEqual([]);
+  });
+
   it('delivers signed webhook payloads for enabled rules', async () => {
     const { prismaClient } = await import('store/client');
     const { createUser } = await import('./testUtils');

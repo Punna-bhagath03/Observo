@@ -10,6 +10,7 @@ import StatusBadge from "@/components/shared/statusBadge"
 import MonitoringPanelSkeleton from "@/components/shared/skeletons/monitoringPanelSkeleton"
 import { getAuthToken } from "@/hooks/useAuthToken"
 import {
+  CHECK_INTERVAL_MINUTES,
   defaultCustomRange,
   parseCustomRangeDates,
   PRESET_RANGES,
@@ -44,14 +45,16 @@ export default function WebsiteMonitoringPanel({
   const [error, setError] = useState<string | null>(null)
 
   const fetchPresetMetrics = useCallback(
-    async (range: PresetRange) => {
+    async (range: PresetRange, options?: { silent?: boolean }) => {
       const token = getAuthToken()
       if (!token) {
         return
       }
 
       setError(null)
-      setLoading(true)
+      if (!options?.silent) {
+        setLoading(true)
+      }
 
       try {
         const response = await axios.get<WebsiteMetrics>(
@@ -64,9 +67,13 @@ export default function WebsiteMonitoringPanel({
         onMonitorChange?.(response.data.monitor)
       } catch (err) {
         console.error(err)
-        setError("Could not load monitoring data. Please try again.")
+        if (!options?.silent) {
+          setError("Could not load monitoring data. Please try again.")
+        }
       } finally {
-        setLoading(false)
+        if (!options?.silent) {
+          setLoading(false)
+        }
       }
     },
     [onMonitorChange, regionId, websiteId]
@@ -103,8 +110,23 @@ export default function WebsiteMonitoringPanel({
   }, [customFrom, customTo, regionId, websiteId])
 
   useEffect(() => {
+    setMetrics(null)
+    setCalculatedRow(null)
+    setError(null)
+  }, [regionId])
+
+  useEffect(() => {
     fetchPresetMetrics(selectedRange)
   }, [fetchPresetMetrics, selectedRange, refreshKey])
+
+  useEffect(() => {
+    const intervalMs = CHECK_INTERVAL_MINUTES * 60_000
+    const intervalId = window.setInterval(() => {
+      void fetchPresetMetrics(selectedRange, { silent: true })
+    }, intervalMs)
+
+    return () => window.clearInterval(intervalId)
+  }, [fetchPresetMetrics, selectedRange])
 
   const monitor = metrics?.monitor
   const periodRows = metrics?.periodStats ?? []
@@ -165,6 +187,8 @@ export default function WebsiteMonitoringPanel({
                 <MetricsChart
                   graph={metrics.graph}
                   monitorStatus={monitor.status}
+                  lastCheckedAt={monitor.lastCheckedAt}
+                  regionName={regionName}
                 />
               )
             ) : null}

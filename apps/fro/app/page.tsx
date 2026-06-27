@@ -1,6 +1,8 @@
 "use client"
 import { useRouter } from "next/navigation"
 
+import { useIsSignedIn, useSignOut } from "@/hooks/useAuthToken"
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0a0a0f] via-[#0d0d15] to-[#0a0a0f] text-white">
@@ -20,12 +22,19 @@ export default function Home() {
 
 function Navigation() {
   const router = useRouter()
+  const isSignedIn = useIsSignedIn()
+  const handleSignOut = useSignOut()
+
   return (
     <nav className="glass fixed top-0 right-0 left-0 z-50">
       <div className="mx-auto max-w-7xl px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <a href="#" className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              className="flex items-center gap-2"
+            >
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600">
                 <svg
                   className="h-5 w-5 text-white"
@@ -42,7 +51,7 @@ function Navigation() {
                 </svg>
               </div>
               <span className="text-xl font-bold">Observo</span>
-            </a>
+            </button>
             <div className="hidden items-center gap-6 md:flex">
               <a
                 href="#features"
@@ -59,24 +68,41 @@ function Navigation() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <a
-              href="#"
-              className="hidden text-sm text-gray-400 transition-colors hover:text-white sm:block"
-              onClick={() => {
-                router.push("/signin")
-              }}
-            >
-              Sign in
-            </a>
-            <a
-              href="#"
-              className="rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-medium transition-all hover:from-cyan-400 hover:to-blue-500"
-              onClick={() => {
-                router.push("/signup")
-              }}
-            >
-              Start Free Trial
-            </a>
+            {isSignedIn ? (
+              <>
+                <button
+                  type="button"
+                  className="hidden rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-white/10 sm:block"
+                  onClick={() => router.push("/dashboard")}
+                >
+                  Dashboard
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-white/10"
+                  onClick={handleSignOut}
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="hidden text-sm text-gray-400 transition-colors hover:text-white sm:block"
+                  onClick={() => router.push("/signin")}
+                >
+                  Sign in
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-sm font-medium transition-all hover:from-cyan-400 hover:to-blue-500"
+                  onClick={() => router.push("/signup")}
+                >
+                  Start Free Trial
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

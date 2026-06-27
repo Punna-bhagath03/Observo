@@ -14,6 +14,7 @@ const rulesSchema = z.object({
 const emailSettingsSchema = z.object({
   address: z.string().email(),
   rules: rulesSchema,
+  enabled: z.boolean().optional(),
 });
 
 const webhookSettingsSchema = z.object({
@@ -26,12 +27,14 @@ export const NotificationSettingsInput = z
   .object({
     email: emailSettingsSchema.optional(),
     webhook: webhookSettingsSchema.optional(),
+    disableEmail: z.boolean().optional(),
     disableWebhook: z.boolean().optional(),
   })
   .refine(
     (value) =>
       value.email !== undefined ||
       value.webhook !== undefined ||
+      value.disableEmail === true ||
       value.disableWebhook === true,
     { message: 'No notification settings provided' }
   );

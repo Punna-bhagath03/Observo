@@ -134,7 +134,7 @@ export default function AppSidebar() {
       <nav className="flex flex-col items-center gap-2">
         {navItems.map((item) => (
           <SidebarNavItem
-            key={item.href}
+            key={item.label}
             item={item}
             active={item.match(pathname)}
           />

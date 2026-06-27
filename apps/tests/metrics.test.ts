@@ -158,7 +158,7 @@ describe('metrics monitor summary', () => {
         {
           status: 'Up',
           response_time_ms: 120,
-          createdAt: new Date('2026-06-25T11:30:00Z'),
+          createdAt: new Date('2026-06-25T11:58:00Z'),
         },
       ],
       [],
@@ -167,7 +167,24 @@ describe('metrics monitor summary', () => {
 
     expect(summary.status).toBe('Up');
     expect(summary.upForMs).toBe(60 * 60_000);
-    expect(summary.lastCheckedAt).toBe('2026-06-25T11:30:00.000Z');
+    expect(summary.lastCheckedAt).toBe('2026-06-25T11:58:00.000Z');
+  });
+
+  it('marks stale checks as checking instead of up', () => {
+    const summary = computeMonitorSummaryFromState(
+      {
+        status: 'Up',
+        response_time_ms: 120,
+        createdAt: new Date('2026-06-25T11:00:00Z'),
+      },
+      new Date('2026-06-25T10:00:00Z'),
+      [],
+      now
+    );
+
+    expect(summary.status).toBe('checking');
+    expect(summary.upForMs).toBeNull();
+    expect(summary.lastCheckedAt).toBe('2026-06-25T11:00:00.000Z');
   });
 
   it('derives up time from explicit streak start state', () => {
@@ -175,7 +192,7 @@ describe('metrics monitor summary', () => {
       {
         status: 'Up',
         response_time_ms: 120,
-        createdAt: new Date('2026-06-25T11:30:00Z'),
+        createdAt: new Date('2026-06-25T11:58:00Z'),
       },
       new Date('2026-06-25T11:00:00Z'),
       [],
@@ -241,7 +258,7 @@ describe('buildWebsiteMetrics', () => {
         {
           status: 'Up',
           response_time_ms: 100,
-          createdAt: new Date('2026-06-25T11:45:00Z'),
+          createdAt: new Date('2026-06-25T11:58:00Z'),
         },
       ],
       incidents: [],

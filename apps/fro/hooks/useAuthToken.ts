@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
 export function getAuthToken(): string | null {
@@ -7,6 +8,16 @@ export function getAuthToken(): string | null {
     return null
   }
   return localStorage.getItem("token")
+}
+
+export function useIsSignedIn(): boolean {
+  const [isSignedIn, setIsSignedIn] = useState(false)
+
+  useEffect(() => {
+    setIsSignedIn(Boolean(getAuthToken()))
+  }, [])
+
+  return isSignedIn
 }
 
 export function useSignOut() {

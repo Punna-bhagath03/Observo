@@ -1,5 +1,86 @@
 export const CHECK_INTERVAL_MINUTES = 3;
 
+const STALE_CHECK_MULTIPLIER = 2;
+
+export function isMonitorCheckStale(
+  lastCheckedAt: Date | null,
+  now = new Date()
+): boolean {
+  if (!lastCheckedAt) {
+    return true;
+  }
+
+  const staleAfterMs =
+    CHECK_INTERVAL_MINUTES * STALE_CHECK_MULTIPLIER * 60_000;
+
+  return now.getTime() - lastCheckedAt.getTime() > staleAfterMs;
+}
+
+function monitorMeta(incidents: IncidentInput[]) {
+  return {
+    incidentCount: incidents.length,
+    checkIntervalMinutes: CHECK_INTERVAL_MINUTES,
+  };
+}
+
+function resolveNonUpMonitorSummary(
+  latest: TickInput | null | undefined,
+  incidents: IncidentInput[],
+  now: Date
+): MonitorSummary | null {
+  if (!latest || latest.status === 'Unknown') {
+    return checkingMonitorSummary(latest, incidents);
+  }
+
+  if (isMonitorCheckStale(latest.createdAt, now)) {
+    return checkingMonitorSummary(latest, incidents);
+  }
+
+  if (latest.status === 'Down') {
+    return downMonitorSummary(latest, incidents);
+  }
+
+  return null;
+}
+
+function checkingMonitorSummary(
+  latest: TickInput | null | undefined,
+  incidents: IncidentInput[]
+): MonitorSummary {
+  return {
+    status: 'checking',
+    upForMs: null,
+    lastCheckedAt: latest?.createdAt.toISOString() ?? null,
+    ...monitorMeta(incidents),
+  };
+}
+
+function downMonitorSummary(
+  latest: TickInput,
+  incidents: IncidentInput[]
+): MonitorSummary {
+  return {
+    status: 'Down',
+    upForMs: null,
+    lastCheckedAt: latest.createdAt.toISOString(),
+    ...monitorMeta(incidents),
+  };
+}
+
+function upMonitorSummary(
+  latest: TickInput,
+  streakStart: Date,
+  now: Date,
+  incidents: IncidentInput[]
+): MonitorSummary {
+  return {
+    status: 'Up',
+    upForMs: Math.max(now.getTime() - streakStart.getTime(), 0),
+    lastCheckedAt: latest.createdAt.toISOString(),
+    ...monitorMeta(incidents),
+  };
+}
+
 export type MetricsRange = 'hour' | 'day' | 'week' | 'month' | 'custom';
 
 export type TickInput = {
@@ -257,28 +338,13 @@ export function computeMonitorSummary(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
   );
   const latest = sorted[0];
+  const nonUp = resolveNonUpMonitorSummary(latest, incidents, now);
 
-  if (!latest || latest.status === 'Unknown') {
-    return {
-      status: 'checking',
-      upForMs: null,
-      lastCheckedAt: latest?.createdAt.toISOString() ?? null,
-      incidentCount: incidents.length,
-      checkIntervalMinutes: CHECK_INTERVAL_MINUTES,
-    };
+  if (nonUp) {
+    return nonUp;
   }
 
-  if (latest.status === 'Down') {
-    return {
-      status: 'Down',
-      upForMs: null,
-      lastCheckedAt: latest.createdAt.toISOString(),
-      incidentCount: incidents.length,
-      checkIntervalMinutes: CHECK_INTERVAL_MINUTES,
-    };
-  }
-
-  let streakStart = latest.createdAt;
+  let streakStart = latest!.createdAt;
   for (let index = 1; index < sorted.length; index++) {
     if (sorted[index]!.status !== 'Up') {
       break;
@@ -286,13 +352,7 @@ export function computeMonitorSummary(
     streakStart = sorted[index]!.createdAt;
   }
 
-  return {
-    status: 'Up',
-    upForMs: Math.max(now.getTime() - streakStart.getTime(), 0),
-    lastCheckedAt: latest.createdAt.toISOString(),
-    incidentCount: incidents.length,
-    checkIntervalMinutes: CHECK_INTERVAL_MINUTES,
-  };
+  return upMonitorSummary(latest!, streakStart, now, incidents);
 }
 
 export function resolveStreakStartAt(input: {
@@ -318,35 +378,15 @@ export function computeMonitorSummaryFromState(
   incidents: IncidentInput[],
   now = new Date()
 ): MonitorSummary {
-  if (!latest || latest.status === 'Unknown') {
-    return {
-      status: 'checking',
-      upForMs: null,
-      lastCheckedAt: latest?.createdAt.toISOString() ?? null,
-      incidentCount: incidents.length,
-      checkIntervalMinutes: CHECK_INTERVAL_MINUTES,
-    };
+  const nonUp = resolveNonUpMonitorSummary(latest, incidents, now);
+
+  if (nonUp) {
+    return nonUp;
   }
 
-  if (latest.status === 'Down') {
-    return {
-      status: 'Down',
-      upForMs: null,
-      lastCheckedAt: latest.createdAt.toISOString(),
-      incidentCount: incidents.length,
-      checkIntervalMinutes: CHECK_INTERVAL_MINUTES,
-    };
-  }
+  const streakStart = streakStartAt ?? latest!.createdAt;
 
-  const streakStart = streakStartAt ?? latest.createdAt;
-
-  return {
-    status: 'Up',
-    upForMs: Math.max(now.getTime() - streakStart.getTime(), 0),
-    lastCheckedAt: latest.createdAt.toISOString(),
-    incidentCount: incidents.length,
-    checkIntervalMinutes: CHECK_INTERVAL_MINUTES,
-  };
+  return upMonitorSummary(latest!, streakStart, now, incidents);
 }
 
 function startOfDay(date: Date): Date {

@@ -17,6 +17,7 @@ describe('Notification settings API', () => {
     });
 
     expect(response.data.email.address).toBeNull();
+    expect(response.data.email.enabled).toBe(false);
     expect(response.data.email.rules['incident.opened']).toBe(true);
     expect(response.data.webhook.url).toBeNull();
     expect(response.data.webhook.enabled).toBe(false);
@@ -40,8 +41,37 @@ describe('Notification settings API', () => {
     );
 
     expect(response.data.email.address).toBe('alerts@example.com');
+    expect(response.data.email.enabled).toBe(true);
     expect(response.data.email.rules['incident.acknowledged']).toBe(true);
     expect(response.data.email.rules['incident.resolved']).toBe(false);
+  });
+
+  it('disables email notifications without removing the saved address', async () => {
+    const response = await axios.patch(
+      `${BACKEND_URL}/notifications/settings`,
+      {
+        email: {
+          address: 'alerts@example.com',
+          rules: {
+            'incident.opened': true,
+            'incident.acknowledged': false,
+            'incident.resolved': true,
+          },
+          enabled: false,
+        },
+      },
+      { headers: { Authorization: token } }
+    );
+
+    expect(response.data.email.address).toBe('alerts@example.com');
+    expect(response.data.email.enabled).toBe(false);
+
+    const followUp = await axios.get(`${BACKEND_URL}/notifications/settings`, {
+      headers: { Authorization: token },
+    });
+
+    expect(followUp.data.email.address).toBe('alerts@example.com');
+    expect(followUp.data.email.enabled).toBe(false);
   });
 
   it('updates webhook notification preferences and returns secret once', async () => {

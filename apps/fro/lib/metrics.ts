@@ -7,6 +7,8 @@ export type {
   WebsiteMetrics,
 } from "store/metrics"
 
+export { CHECK_INTERVAL_MINUTES } from "store/metrics"
+
 export const PRESET_RANGES = [
   { id: "hour" as const, label: "Hour" },
   { id: "day" as const, label: "Day" },

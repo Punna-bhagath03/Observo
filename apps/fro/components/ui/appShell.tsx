@@ -27,7 +27,7 @@ export default function AppShell({ children, onSignOut }: AppShellProps) {
         <header className="sticky top-0 z-30 border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-xl">
           <div className="flex items-center justify-between px-5 py-3">
             <Link
-              href="/dashboard"
+              href="/"
               className="text-lg font-bold transition-opacity hover:opacity-90"
             >
               Observo

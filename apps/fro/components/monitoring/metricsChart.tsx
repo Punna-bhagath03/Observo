@@ -11,11 +11,16 @@ import {
   getXAxisIncrements,
   getXAxisLabelSpace,
 } from "@/lib/chartAxis"
+import { formatTimelineDate } from "@/lib/utils"
 
 type MetricsChartProps = {
   graph: GraphData
   monitorStatus?: MonitorSummary["status"]
+  lastCheckedAt?: string | null
+  regionName?: string
 }
+
+const SPARSE_BUCKET_LIMIT = 6
 
 const CHART_HEIGHT = 260
 
@@ -54,12 +59,59 @@ function buildChartSeries(graph: GraphData): ChartSeries {
   return { timestamps, avgMs, availabilityUp, availabilityDown }
 }
 
-function hasChartData(series: ChartSeries): boolean {
-  return (
-    series.avgMs.some((value) => value !== null) ||
-    series.availabilityUp.some((value) => value !== null) ||
-    series.availabilityDown.some((value) => value !== null)
-  )
+function countFilledBuckets(series: ChartSeries): number {
+  return series.timestamps.filter((_, index) => {
+    return (
+      series.avgMs[index] !== null ||
+      series.availabilityUp[index] !== null ||
+      series.availabilityDown[index] !== null
+    )
+  }).length
+}
+
+function workerIssueMessage(
+  regionName: string,
+  lastCheckedAt: string | null
+): string {
+  return lastCheckedAt
+    ? `The ${regionName} worker may not be running. Last check was ${formatTimelineDate(lastCheckedAt)}.`
+    : `Waiting for the ${regionName} worker to run the first check.`
+}
+
+type ChartStatusBanner = {
+  tone: "info" | "warning"
+  message: string
+} | null
+
+function getChartStatusBanner(input: {
+  monitorStatus: MonitorSummary["status"]
+  lastCheckedAt: string | null
+  sparseChart: boolean
+  regionName: string
+  graphRange: GraphData["range"]
+}): ChartStatusBanner {
+  if (input.monitorStatus === "checking") {
+    return {
+      tone: "warning",
+      message: workerIssueMessage(input.regionName, input.lastCheckedAt),
+    }
+  }
+
+  if (input.monitorStatus === "Up" && input.sparseChart) {
+    const fillHint =
+      input.graphRange === "hour"
+        ? "over the next hour"
+        : input.graphRange === "day"
+          ? "throughout the day"
+          : "over time"
+
+    return {
+      tone: "info",
+      message: `The ${input.regionName} worker recently started. This chart will fill in ${fillHint}.`,
+    }
+  }
+
+  return null
 }
 
 function responseAxisRange(
@@ -82,12 +134,27 @@ function responseAxisRange(
 export default function MetricsChart({
   graph,
   monitorStatus = "checking",
+  lastCheckedAt = null,
+  regionName = "regional",
 }: MetricsChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const plotRef = useRef<uPlot | null>(null)
   const [width, setWidth] = useState(0)
   const series = useMemo(() => buildChartSeries(graph), [graph])
-  const showChart = hasChartData(series)
+  const filledBuckets = useMemo(() => countFilledBuckets(series), [series])
+  const showChart = filledBuckets > 0
+  const sparseChart = filledBuckets > 0 && filledBuckets <= SPARSE_BUCKET_LIMIT
+  const statusBanner = useMemo(
+    () =>
+      getChartStatusBanner({
+        monitorStatus,
+        lastCheckedAt,
+        sparseChart,
+        regionName,
+        graphRange: graph.range,
+      }),
+    [graph.range, lastCheckedAt, monitorStatus, regionName, sparseChart]
+  )
   const spanMs = useMemo(
     () => new Date(graph.to).getTime() - new Date(graph.from).getTime(),
     [graph.from, graph.to]
@@ -134,6 +201,10 @@ export default function MetricsChart({
     ]
 
     const labelSpace = getXAxisLabelSpace(width)
+    const pointStyle = {
+      show: sparseChart,
+      size: 5,
+    } as const
 
     const plot = new uPlot(
       {
@@ -144,8 +215,7 @@ export default function MetricsChart({
           drag: { x: false, y: false },
         },
         legend: {
-          show: true,
-          live: false,
+          show: false,
         },
         scales: {
           x: { time: true },
@@ -199,7 +269,11 @@ export default function MetricsChart({
             stroke: COLORS.response,
             width: 2,
             spanGaps: true,
-            points: { show: false },
+            points: {
+              ...pointStyle,
+              stroke: COLORS.response,
+              fill: COLORS.response,
+            },
           },
           {
             label: "Up",
@@ -207,7 +281,11 @@ export default function MetricsChart({
             width: 2,
             scale: "y2",
             spanGaps: true,
-            points: { show: false },
+            points: {
+              ...pointStyle,
+              stroke: COLORS.up,
+              fill: COLORS.up,
+            },
           },
           {
             label: "Down",
@@ -215,7 +293,11 @@ export default function MetricsChart({
             width: 2,
             scale: "y2",
             spanGaps: true,
-            points: { show: false },
+            points: {
+              ...pointStyle,
+              stroke: COLORS.down,
+              fill: COLORS.down,
+            },
           },
         ],
       },
@@ -229,10 +311,21 @@ export default function MetricsChart({
       plot.destroy()
       plotRef.current = null
     }
-  }, [graph.range, series, showChart, spanMs, width])
+  }, [graph.range, series, showChart, spanMs, sparseChart, width])
 
   return (
     <div className="space-y-3">
+      {statusBanner ? (
+        <p
+          className={`rounded-lg border px-3 py-2 text-xs ${
+            statusBanner.tone === "warning"
+              ? "border-red-500/20 bg-red-500/5 text-red-200"
+              : "border-cyan-500/20 bg-cyan-500/5 text-cyan-200"
+          }`}
+        >
+          {statusBanner.message}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400">
         <span>
           {formatChartRangeLabel(graph.from)} –{" "}
@@ -271,7 +364,12 @@ export default function MetricsChart({
           className="w-full overflow-hidden rounded-xl border border-white/5 bg-black/20"
         />
       ) : (
-        <EmptyChartState monitorStatus={monitorStatus} />
+        <EmptyChartState
+          monitorStatus={monitorStatus}
+          lastCheckedAt={lastCheckedAt}
+          graphFrom={graph.from}
+          regionName={regionName}
+        />
       )}
     </div>
   )
@@ -279,13 +377,25 @@ export default function MetricsChart({
 
 function EmptyChartState({
   monitorStatus,
+  lastCheckedAt,
+  graphFrom,
+  regionName,
 }: {
   monitorStatus: MonitorSummary["status"]
+  lastCheckedAt: string | null
+  graphFrom: string
+  regionName: string
 }) {
-  const message =
-    monitorStatus === "checking"
-      ? "No checks recorded in this time range yet. The worker will populate the graph after the first probes."
-      : "No check data in this time range. Try a wider range like Week or Month, or wait for more checks."
+  const lastCheckMs = lastCheckedAt ? new Date(lastCheckedAt).getTime() : null
+  const rangeStartMs = new Date(graphFrom).getTime()
+  const lastCheckBeforeRange =
+    lastCheckMs !== null && lastCheckMs < rangeStartMs
+
+  const message = lastCheckBeforeRange
+    ? `Last check was ${formatTimelineDate(lastCheckedAt!)} — before this chart range. Try Day or Week, or check the ${regionName} worker.`
+    : monitorStatus === "checking"
+      ? workerIssueMessage(regionName, lastCheckedAt)
+      : "No check data in this time range. Try a wider range like Week or Month."
 
   return (
     <div className="flex h-[260px] flex-col items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/20 px-4 text-center">

@@ -33,7 +33,7 @@ import {
   getNotificationSettings,
   upsertEmailNotificationSettings,
   upsertWebhookNotificationSettings,
-  disableWebhookNotificationSettings,
+  disableNotificationChannel,
 } from 'store/notifications';
 import { publishIncidentEvent } from 'store/publishIncidentEvent';
 import { AuthInput, NotificationSettingsInput } from './types';
@@ -538,6 +538,10 @@ app.patch('/notifications/settings', authMiddleware, async (req, res) => {
     return;
   }
 
+  if (parsed.data.disableEmail) {
+    await disableNotificationChannel(prismaClient, req.userId!, 'email');
+  }
+
   if (parsed.data.email) {
     await upsertEmailNotificationSettings(
       prismaClient,
@@ -549,7 +553,7 @@ app.patch('/notifications/settings', authMiddleware, async (req, res) => {
   let webhookSecret: string | undefined;
 
   if (parsed.data.disableWebhook) {
-    await disableWebhookNotificationSettings(prismaClient, req.userId!);
+    await disableNotificationChannel(prismaClient, req.userId!, 'webhook');
   }
 
   if (parsed.data.webhook) {

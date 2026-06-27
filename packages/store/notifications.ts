@@ -439,6 +439,7 @@ export type ChannelSettings = {
 
 export type EmailSettings = ChannelSettings & {
   address: string | null;
+  enabled: boolean;
 };
 
 export type WebhookSettings = ChannelSettings & {
@@ -487,6 +488,7 @@ export async function getNotificationSettings(
   return {
     email: {
       address: emailConfig.email ?? null,
+      enabled: emailChannel?.enabled ?? false,
       rules: emailChannel ? rulesFromChannel(emailChannel.rules) : DEFAULT_RULES(),
     },
     webhook: {
@@ -530,14 +532,16 @@ async function upsertChannelRecord(
   userId: string,
   type: ChannelType,
   config: Record<string, string>,
-  options?: { label?: string; channelId?: string }
+  options?: { label?: string; channelId?: string; enabled?: boolean }
 ): Promise<string> {
+  const enabled = options?.enabled ?? true;
+
   if (options?.channelId) {
     return (
       await prisma.notification_channel.update({
         where: { id: options.channelId },
         data: {
-          enabled: true,
+          enabled,
           config,
           ...(options.label ? { label: options.label } : {}),
         },
@@ -555,6 +559,7 @@ async function upsertChannelRecord(
     return upsertChannelRecord(prisma, userId, type, config, {
       label: options?.label,
       channelId: existing.id,
+      enabled,
     });
   }
 
@@ -564,6 +569,7 @@ async function upsertChannelRecord(
         user_id: userId,
         type,
         config,
+        enabled,
         ...(options?.label ? { label: options.label } : {}),
       },
       select: { id: true },
@@ -577,16 +583,38 @@ export async function upsertEmailNotificationSettings(
   input: {
     address: string;
     rules: Record<IncidentEventType, boolean>;
+    enabled?: boolean;
   }
 ) {
+  const existing = await prisma.notification_channel.findFirst({
+    where: { user_id: userId, type: 'email' },
+    select: { id: true },
+  });
+
   const channelId = await upsertChannelRecord(
     prisma,
     userId,
     'email',
-    { email: input.address }
+    { email: input.address },
+    {
+      label: 'Email',
+      channelId: existing?.id,
+      enabled: input.enabled ?? true,
+    }
   );
 
   await upsertChannelRules(prisma, channelId, input.rules);
+}
+
+export async function disableNotificationChannel(
+  prisma: PrismaClient,
+  userId: string,
+  type: 'email' | 'webhook'
+) {
+  await prisma.notification_channel.updateMany({
+    where: { user_id: userId, type },
+    data: { enabled: false },
+  });
 }
 
 export async function upsertWebhookNotificationSettings(
@@ -634,14 +662,4 @@ export async function upsertWebhookNotificationSettings(
   await upsertChannelRules(prisma, channelId, input.rules);
 
   return returnedSecret ? { secret: returnedSecret } : {};
-}
-
-export async function disableWebhookNotificationSettings(
-  prisma: PrismaClient,
-  userId: string
-) {
-  await prisma.notification_channel.updateMany({
-    where: { user_id: userId, type: 'webhook' },
-    data: { enabled: false },
-  });
 }
